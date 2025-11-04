@@ -52,9 +52,9 @@ def query_db(query, args=(), one=False):
     cur.close()
     return (rv[0] if rv else None) if one else rv
 
-
+# spaCy is used for text normalization and will power OCR imports later.
 # Load spaCy model once
-nlp = spacy.load("en_core_web_md")
+nlp = spacy.load("en_core_web_sm")
 
 # ---------------------------
 # Database helpers
