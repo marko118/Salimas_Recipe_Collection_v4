@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Salima's Recipes{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body data-page="{{ request.endpoint }}">
+
+  <!-- === HEADER (scrolls away) === -->
+  <header class="site-header">
+    <h1 class="site-title">
+      <a href="/">🍲 Salima's Recipes</a>
+    </h1>
+  </header>
+
+  
+
+</body>
+</html>
+
+  <!-- === STICKY NAV (independent) === -->
+  <nav class="site-nav">
+    <a href="/">Home</a> |
+    <a href="/add">Add</a> |
+    <a href="{{ url_for('admin_tags') }}">Manage Tags</a> |
+    <a href="{{ url_for('planner') }}">Planner <span id="plannerCount">(0)</span></a>
+
+  </nav>
+
+  <!-- === GLOBAL CONTROL SPACE (sticky under nav) === -->
+  <div id="control-space"
+     class="control-space"
+     style="display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:0.8rem; padding:0.5rem 1rem; background:var(--background); border-bottom:1px solid rgba(0,0,0,0.1);">
+  
+  {% if request.path == '/' %}
+    <button id="toggleTagsBtn" class="btn-toggle-cloud">☁️ Show Cloud</button>
+  {% endif %}
+  
+  <!-- Edit button now handled inside recipe_detail.html -->
+  <button id="clearSelectedBtn" class="btn-clear">🧹 Clear Selections</button>
+</div>
+
+  <!-- === MAIN CONTENT === -->
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- === FOOTER === -->
+  <footer class="site-footer">
+    &copy; {{ 2025|default(2025) }} Salima’s Recipes
+  </footer>
+
+  <!-- === GLOBAL SCRIPTS === -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      // --- Planner count ---
+const updateMealCount = () => {
+  const stored = JSON.parse(localStorage.getItem("selectedRecipes") || "[]");
+  const plannerCount = document.getElementById("plannerCount");
+  if (plannerCount) plannerCount.textContent = `(${stored.length})`;
+};
+
+      window.updateMealCount = updateMealCount;
+      updateMealCount();
+
+      // --- Double-tap Clear button ---
+      const clearBtn = document.getElementById("clearSelectedBtn");
+      if (clearBtn) {
+        let waiting = false;
+        clearBtn.addEventListener("click", () => {
+          if (!waiting) {
+            clearBtn.textContent = "Tap again to confirm";
+            clearBtn.classList.add("btn-waiting");
+            waiting = true;
+            setTimeout(() => {
+              clearBtn.textContent = "Clear Selections";
+              clearBtn.classList.remove("btn-waiting");
+              waiting = false;
+            }, 2500);
+            return;
+          }
+          // Confirmed clear
+          localStorage.removeItem("selectedRecipes");
+          document.querySelectorAll(".select-dish-btn").forEach(btn => {
+            btn.classList.remove("selected");
+          });
+          updateMealCount();
+          clearBtn.textContent = "Cleared!";
+          clearBtn.classList.add("btn-cleared");
+          setTimeout(() => {
+            clearBtn.textContent = "Clear Selections";
+            clearBtn.classList.remove("btn-cleared");
+          }, 1500);
+          waiting = false;
+        });
+      }
+
+      // --- “Saved!” flash when returning from edit ---
+      const params = new URLSearchParams(window.location.search);
+      if (params.has("saved")) {
+        const editBtn = document.querySelector("#editBtn");
+        if (editBtn) {
+          const originalText = editBtn.textContent;
+          editBtn.textContent = "✅ Saved!";
+          editBtn.style.background = "#00b35f";
+          editBtn.style.color = "#fff";
+          setTimeout(() => {
+            editBtn.textContent = originalText;
+            editBtn.style.background = "var(--brand)";
+            editBtn.style.color = "white";
+            const url = new URL(window.location);
+            url.searchParams.delete("saved");
+            window.history.replaceState({}, "", url);
+          }, 1800);
+        }
+      }
+    });
+  </script>
+
+  <!-- === TAG CLOUD TOGGLE === -->
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const btn   = document.getElementById("toggleTagsBtn");
+      const cloud = document.getElementById("tagCloudContainer");
+      if (!btn || !cloud) return;
+
+      const savedState = localStorage.getItem("tagCloudVisible") === "true";
+      cloud.classList.toggle("visible", savedState);
+      cloud.classList.toggle("hidden", !savedState);
+      btn.classList.toggle("active", savedState);
+      btn.textContent = savedState ? "Hide Cloud" : "Show Cloud";
+
+      btn.addEventListener("click", () => {
+        const visible = cloud.classList.contains("visible");
+        cloud.classList.toggle("visible", !visible);
+        cloud.classList.toggle("hidden", visible);
+        btn.classList.toggle("active", !visible);
+        btn.textContent = visible ? "Show Cloud" : "Hide Cloud";
+        localStorage.setItem("tagCloudVisible", (!visible).toString());
+      });
+    });
+  </script>
+
+</body>
+</html>
