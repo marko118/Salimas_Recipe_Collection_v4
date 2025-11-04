@@ -762,46 +762,39 @@ def api_selected():
 
 # === Shared Shopping List API ===
 
-@app.route("/api/shopping_list", methods=["GET"])
-def api_get_shopping_list():
-    rows = query_db(
-        "SELECT category, name, checked, note FROM shopping_list ORDER BY category, name;"
-    )
-    return jsonify([dict(r) for r in rows])
-
-@app.route("/api/shopping_list", methods=["POST"])
-def api_save_shopping_list():
-    data = request.get_json(force=True)
-    if not isinstance(data, list):
-        return jsonify({"error": "Invalid data"}), 400
-
-    if not data:
-        return jsonify({"error": "Empty list received; nothing saved."}), 400
-
-    db = get_db()
-
-    # ✅ Instead of deleting everything, replace items in-place
-    for item in data:
-        db.execute(
-    """
-    INSERT INTO shopping_list (category, name, checked, note)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(category, name) DO UPDATE SET
-      checked = excluded.checked,
-      note = excluded.note;
-    """,
-    (
-        item.get("category", ""),
-        item.get("name", ""),
-        int(item.get("checked", False)),
-        item.get("note", ""),
-    ),
-)
-
-
-    db.commit()
-    return jsonify({"ok": True})
-
+# @app.route("/api/shopping_list", methods=["GET"])
+# def api_get_shopping_list():
+#     rows = query_db(
+#         "SELECT category, name, checked, note FROM shopping_list ORDER BY category, name;"
+#     )
+#     return jsonify([dict(r) for r in rows])
+#
+# @app.route("/api/shopping_list", methods=["POST"])
+# def api_save_shopping_list():
+#     data = request.get_json(force=True)
+#     if not isinstance(data, list):
+#         return jsonify({"error": "Invalid data"}), 400
+#     if not data:
+#         return jsonify({"error": "Empty list received; nothing saved."}), 400
+#     db = get_db()
+#     for item in data:
+#         db.execute(
+#             """
+#             INSERT INTO shopping_list (category, name, checked, note)
+#             VALUES (?, ?, ?, ?)
+#             ON CONFLICT(category, name) DO UPDATE SET
+#               checked = excluded.checked,
+#               note = excluded.note;
+#             """,
+#             (
+#                 item.get("category", ""),
+#                 item.get("name", ""),
+#                 int(item.get("checked", False)),
+#                 item.get("note", ""),
+#             ),
+#         )
+#     db.commit()
+#     return jsonify({"ok": True})
 
 
 # === Shared Meal Plan API ===
@@ -862,25 +855,26 @@ def api_shopping_list_get():
     with get_conn() as conn:
         c = conn.cursor()
         c.execute("""
-            SELECT id, name, category, amount, checked, crossed, active
+            SELECT id, name, category, amount, crossed, active
             FROM shopping_list
             WHERE active = 1
             ORDER BY category, name
         """)
         rows = c.fetchall()
+
     items = [
         {
             "id": r[0],
             "name": r[1],
-            "category": r[2] or "",
+            "category": r[2] or "Other",
             "amount": r[3] or "",
-            "checked": bool(r[4]),
-            "crossed": bool(r[5]),
-            "active": bool(r[6]),
+            "crossed": bool(r[4]),
+            "active": bool(r[5])
         }
         for r in rows
     ]
     return jsonify(items)
+
 
 
 @app.route("/api/shopping_list", methods=["POST"])
@@ -890,44 +884,95 @@ def api_shopping_list_post():
     if not name:
         return jsonify({"error": "Missing name"}), 400
 
-    category = data.get("category")
+    category = data.get("category") or "Other"
     amount = data.get("amount", "")
-    checked = int(bool(data.get("checked", True)))
-    crossed = int(bool(data.get("crossed", False)))
+    crossed = 0
     active = 1
 
     with get_conn() as conn:
         c = conn.cursor()
-        c.execute("""
-            INSERT INTO shopping_list (name, category, amount, checked, crossed, active)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (name, category, amount, checked, crossed, active))
-        conn.commit()
-        new_id = c.lastrowid
 
-    return jsonify({"id": new_id, "name": name, "category": category})
+        # Check if this item already exists (case-insensitive)
+        c.execute("SELECT id FROM shopping_list WHERE LOWER(name)=LOWER(?)", (name,))
+        row = c.fetchone()
+
+        if row:
+            # Reactivate existing row
+            c.execute("""
+                UPDATE shopping_list
+                   SET category=?,
+                       active=1,
+                       crossed=0,
+                       updated_at=CURRENT_TIMESTAMP
+                 WHERE id=?;
+            """, (category, row[0]))
+            conn.commit()
+            print(f"♻️ Reactivated existing item '{name}' → {category}")
+            return jsonify({"id": row[0], "name": name, "category": category})
+
+        else:
+            # Insert new row
+            c.execute("""
+                INSERT INTO shopping_list (name, category, amount, crossed, active)
+                VALUES (?, ?, ?, ?, ?);
+            """, (name, category, amount, crossed, active))
+            conn.commit()
+            new_id = c.lastrowid
+            print(f"✅ Added new item '{name}' → {category}")
+            return jsonify({"id": new_id, "name": name, "category": category})
+
+
+
+
 
 
 @app.route("/api/shopping_list/<int:item_id>", methods=["PATCH"])
 def api_shopping_list_patch(item_id):
     data = request.get_json(force=True)
-    allowed_fields = ["name", "category", "amount", "checked", "crossed", "active"]
-    sets, values = [], []
 
-    for field in allowed_fields:
-        if field in data:
-            sets.append(f"{field} = ?")
-            values.append(data[field])
-    if not sets:
-        return jsonify({"error": "No valid fields"}), 400
-
-    values.append(item_id)
     with get_conn() as conn:
         c = conn.cursor()
-        c.execute(f"UPDATE shopping_list SET {', '.join(sets)}, updated_at=CURRENT_TIMESTAMP WHERE id = ?", values)
+
+        # --- Update category (drag-drop)
+        if "category" in data:
+            c.execute("""
+                UPDATE shopping_list
+                   SET category = ?,
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?;
+            """, (data["category"], item_id))
+
+        # --- Update amount
+        if "amount" in data:
+            c.execute("""
+                UPDATE shopping_list
+                   SET amount = ?,
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?;
+            """, (data["amount"], item_id))
+
+        # --- Update crossed (purchased)
+        if "crossed" in data:
+            c.execute("""
+                UPDATE shopping_list
+                   SET crossed = ?,
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?;
+            """, (int(data["crossed"]), item_id))
+
+        # --- Update active (reactivate / deactivate if needed)
+        if "active" in data:
+            c.execute("""
+                UPDATE shopping_list
+                   SET active = ?,
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE id = ?;
+            """, (int(data["active"]), item_id))
+
         conn.commit()
 
-    return jsonify({"status": "updated"})
+    return jsonify({"status": "ok"})
+
 
 
 @app.route("/api/shopping_list/<int:item_id>", methods=["DELETE"])
@@ -943,9 +988,10 @@ def api_shopping_list_delete(item_id):
 def api_shopping_list_clear():
     with get_conn() as conn:
         c = conn.cursor()
-        c.execute("UPDATE shopping_list SET active = 0, updated_at = CURRENT_TIMESTAMP")
+        c.execute("UPDATE shopping_list SET active = 0")
         conn.commit()
     return jsonify({"status": "cleared"})
+
 
 
 # ---------------------------

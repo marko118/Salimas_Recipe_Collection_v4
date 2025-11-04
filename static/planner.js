@@ -25,8 +25,13 @@ let items = [];
    1. Fetch & Render
    =============================== */
 async function loadShoppingList() {
-  const res = await fetch("/api/shopping_list");
-  items = await res.json();
+  try {
+    const res = await fetch("/api/shopping_list");
+    items = await res.json();   // <— replaces the array, not append
+  } catch (err) {
+    console.error("Failed to load shopping list:", err);
+    items = [];
+  }
   renderShoppingList();
 }
 
@@ -46,7 +51,7 @@ function renderShoppingList() {
     ul.className = "item-list";
 
     items
-      .filter(i => (i.category || "Other") === cat && i.active !== false)
+      .filter(i => (i.category || "Other") === cat && i.active === true)
       .forEach(i => {
         const li = document.createElement("li");
         li.className = "item-row";
@@ -55,14 +60,12 @@ function renderShoppingList() {
         li.dataset.category = cat;
 
         li.innerHTML = `
-          <label style="flex:1;">
-            <input type="checkbox" class="shop-item" data-id="${i.id}" ${i.checked ? "checked" : ""}>
-            <span class="item-name" style="${i.crossed ? "text-decoration:line-through;opacity:0.6;" : ""}">
-              ${i.name}
-            </span>
-          </label>
+          <span class="item-name" style="${i.crossed ? "text-decoration:line-through;opacity:0.6;" : ""}">
+            ${i.name}
+          </span>
           <input type="text" class="amount-input" data-id="${i.id}" value="${i.amount || ""}" placeholder="1">
         `;
+
         ul.appendChild(li);
       });
 
@@ -78,73 +81,83 @@ function renderShoppingList() {
    2. Handlers & Updates
    =============================== */
 function attachHandlers() {
-  // checkbox toggle
-  document.querySelectorAll(".shop-item").forEach(box => {
-    box.onchange = async () => {
-      const id = box.dataset.id;
-      const checked = box.checked ? 1 : 0;
-      await fetch(`/api/shopping_list/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ checked })
-      });
-    };
-  });
-
-  // strike-through toggle
+  // --- strike-through toggle (ordered/purchased) ---
   document.querySelectorAll(".item-name").forEach(span => {
     span.onclick = async () => {
-      const id = span.closest("label").querySelector(".shop-item").dataset.id;
+      const id = span.closest(".item-row").dataset.id;
       const crossed = !span.style.textDecoration.includes("line-through");
+
+      // update UI immediately
       span.style.textDecoration = crossed ? "line-through" : "none";
       span.style.opacity = crossed ? "0.6" : "1";
-      await fetch(`/api/shopping_list/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ crossed })
-      });
+
+      try {
+        const res = await fetch(`/api/shopping_list/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ crossed })
+        });
+        if (!res.ok) throw new Error(await res.text());
+      } catch (err) {
+        console.error("Cross toggle failed:", err);
+      }
     };
 
-    // delete on double click
+    // --- delete on double-click ---
     span.ondblclick = async () => {
-      const id = span.closest("label").querySelector(".shop-item").dataset.id;
-      if (confirm(`Delete "${span.textContent.trim()}"?`)) {
-        await fetch(`/api/shopping_list/${id}`, { method: "DELETE" });
-        await loadShoppingList();
+      const id = span.closest(".item-row").dataset.id;
+      const name = span.textContent.trim();
+      if (confirm(`Delete "${name}" from list?`)) {
+        try {
+          const res = await fetch(`/api/shopping_list/${id}`, { method: "DELETE" });
+          if (!res.ok) throw new Error(await res.text());
+          await loadShoppingList();
+        } catch (err) {
+          console.error("Delete failed:", err);
+        }
       }
     };
   });
 
-  // amount change
+  // --- update amount field live ---
   document.querySelectorAll(".amount-input").forEach(inp => {
     inp.oninput = async () => {
       const id = inp.dataset.id;
       const amount = inp.value.trim();
-      await fetch(`/api/shopping_list/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount })
-      });
+      try {
+        const res = await fetch(`/api/shopping_list/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ amount })
+        });
+        if (!res.ok) throw new Error(await res.text());
+      } catch (err) {
+        console.error("Amount update failed:", err);
+      }
     };
   });
-
-  // ingredient input → add on Enter
-  if (ingredientInput) {
-    ingredientInput.addEventListener("keydown", async e => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        const name = ingredientInput.value.trim();
-        if (!name) return;
-        const cat = detectCategory(name);
-        await addNewItem(name, cat);
-        ingredientInput.value = "";
-      }
-    });
-  }
 }
 
 /* ===============================
-   3. Drag & Drop between categories
+   3. Clear List button
+   =============================== */
+if (clearBtn) {
+  clearBtn.onclick = async () => {
+    if (confirm("Start a new shopping list for everyone?")) {
+      try {
+        const res = await fetch("/api/shopping_list/clear", { method: "POST" });
+        if (!res.ok) throw new Error(await res.text());
+        await loadShoppingList(); // reloads empty list
+        console.log("🧹 Cleared: new shared list started.");
+      } catch (err) {
+        console.error("Clear failed:", err);
+      }
+    }
+  };
+}
+
+/* ===============================
+   4. Drag & Drop between categories
    =============================== */
 function enableDragDrop() {
   const allCats = document.querySelectorAll(".category");
@@ -168,41 +181,106 @@ function enableDragDrop() {
       if (!dragged) return;
       const newCat = catBox.dataset.cat;
       const id = dragged.dataset.id;
-      await fetch(`/api/shopping_list/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category: newCat })
-      });
-      await loadShoppingList();
+      try {
+        const res = await fetch(`/api/shopping_list/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ category: newCat })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        await loadShoppingList();
+      } catch (err) {
+        console.error("Category move failed:", err);
+      }
     });
   });
 }
 
 /* ===============================
-   4. Add new item
+   5. Ingredient input → add on Enter
    =============================== */
-async function addNewItem(name, category) {
-  const res = await fetch("/api/shopping_list", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, category })
+if (ingredientInput) {
+  ingredientInput.addEventListener("keydown", async e => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const name = ingredientInput.value.trim();
+      if (!name) return;
+      const cat = detectCategory(name);
+      await addNewItem(name, cat);
+      ingredientInput.value = "";
+    }
   });
-  const data = await res.json();
-  items.push({ id: data.id, name, category, checked: true, crossed: false, amount: "" });
-  renderShoppingList();
 }
 
 /* ===============================
-   5. Clear list & meal plan
+   6. Add new item (de-dupe safe)
    =============================== */
-if (clearBtn) {
-  clearBtn.onclick = async () => {
-    if (confirm("Clear current shopping list (keep items in history)?")) {
-      await fetch("/api/shopping_list/clear", { method: "POST" });
-      await loadShoppingList();
+async function addNewItem(name, category) {
+  try {
+    const res = await fetch("/api/shopping_list", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, category })
+    });
+
+    if (!res.ok) {
+      console.error("Add item failed:", await res.text());
+      return;
+    }
+
+    const data = await res.json();
+    if (!data || !data.id) {
+      console.warn("No valid item data returned:", data);
+      return;
+    }
+
+    // prevent duplicates in memory
+    const lower = name.toLowerCase();
+    const exists = items.some(
+      i => i.id === data.id || i.name.toLowerCase() === lower
+    );
+
+    if (!exists) {
+      items.push({
+  id: data.id,
+  name: data.name || name,
+  category: data.category || category,
+  crossed: false,
+  amount: "",
+  active: true    // ✅ ensure it passes render filter
+});
+
+    } else {
+      // update existing category if changed
+      items = items.map(i =>
+        i.id === data.id
+          ? { ...i, category: data.category || i.category }
+          : i
+      );
+    }
+
+    renderShoppingList(); // refresh UI
+    console.log(`✅ Added/updated '${name}' in category '${category}'.`);
+  } catch (err) {
+    console.error("addNewItem() failed:", err);
+  }
+}
+
+/* ===============================
+   7. Clear meal plan (independent)
+   =============================== */
+if (clearMealPlanBtn) {
+  clearMealPlanBtn.onclick = () => {
+    if (confirm("Clear all meal plan selections?")) {
+      const selects = document.querySelectorAll("#mealGridContainer select");
+      selects.forEach(sel => (sel.value = ""));
+      console.log("Meal plan cleared");
     }
   };
 }
+
+
+
 
 if (clearMealPlanBtn) {
   clearMealPlanBtn.onclick = () => {
@@ -215,7 +293,7 @@ if (clearMealPlanBtn) {
 }
 
 /* ===============================
-   6. Save Planner (combined snapshot)
+   8. Save Planner (combined snapshot)
    =============================== */
 if (saveBtn) {
   saveBtn.onclick = async () => {
@@ -235,7 +313,7 @@ if (saveBtn) {
 }
 
 /* ===============================
-   7. Overlay list
+   9. Overlay list
    =============================== */
 if (generateBtn) {
   generateBtn.onclick = async () => {
@@ -247,7 +325,7 @@ if (generateBtn) {
     content.innerHTML = "";
 
     categories.forEach(cat => {
-      const catItems = items.filter(i => i.category === cat && i.checked && i.active !== false);
+      const catItems = items.filter(i => i.category === cat && i.active === true);
       if (!catItems.length) return;
       const header = document.createElement("div");
       header.textContent = cat.toUpperCase() + ":";
@@ -269,7 +347,7 @@ if (generateBtn) {
 }
 
 /* ===============================
-   8. Category detection
+   10. Category detection
    =============================== */
 const KEYMAP = {
   "Dairy & Eggs": ["milk","cheese","cream","butter","yog","egg"],
@@ -291,6 +369,6 @@ function detectCategory(name) {
 }
 
 /* ===============================
-   9. Init
+   11. Init
    =============================== */
 document.addEventListener("DOMContentLoaded", loadShoppingList);
