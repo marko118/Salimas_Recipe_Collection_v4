@@ -52,6 +52,8 @@ function renderRecipes(meals) {
       })
       .join("");
 
+
+
 // --- Build recipe title and external link ---
 const externalLink = meal.url || meal.recipe_link || `/recipe/${meal.id}`;
 
@@ -76,6 +78,48 @@ const titleHTML = `
 
   attachRecipeHandlers();
 
+/* ===============================
+   Add checked recipe ingredients to shopping list (preserves learned category)
+   =============================== */
+const addToListBtn = document.getElementById("importFromRecipesBtn");
+
+if (addToListBtn) {
+  addToListBtn.addEventListener("click", async () => {
+    const checkedBoxes = document.querySelectorAll(
+      "#recipesContainer input[type='checkbox']:checked"
+    );
+
+    if (!checkedBoxes.length) {
+      showToast("No ingredients selected.");
+      return;
+    }
+
+    let addedCount = 0;
+
+    for (const box of checkedBoxes) {
+      const ingredientName = (box.dataset.ing || "").trim();
+      if (!ingredientName) continue;
+
+      // 🧠 Detect category but send null for "Other" so backend keeps stored one
+      let cat = detectCategory(ingredientName);
+      if (!cat || cat === "Other") cat = null;
+
+      await addNewItem(ingredientName, cat);
+      addedCount++;
+
+      // Visual feedback
+      box.checked = false;
+      box.disabled = true;
+      box.style.opacity = "0.5";
+    }
+
+    showToast(`✅ Added ${addedCount} ingredients to shopping list.`);
+  });
+}
+
+
+
+  
   // --- Enable drag start for cards ---
   container.querySelectorAll(".recipe-card").forEach(card => {
     card.addEventListener("dragstart", e => {

@@ -21,6 +21,9 @@ const categories = [
 
 let items = [];
 
+// Prevent double add when selecting from suggestions
+window.selectingSuggestion = false;
+
 /* ===============================
    1. Fetch & Render
    =============================== */
@@ -50,9 +53,22 @@ function renderShoppingList() {
     const ul = document.createElement("ul");
     ul.className = "item-list";
 
-    items
-      .filter(i => (i.category || "Other") === cat && i.active === true)
-      .forEach(i => {
+    const catItems = items.filter(
+      i => (i.category || "Other") === cat && i.active === true
+    );
+
+    // ✅ Add .empty class if no items in this category
+    if (catItems.length === 0) {
+      box.classList.add("empty");
+
+      const placeholder = document.createElement("li");
+      placeholder.textContent = "– No items –";
+      placeholder.style.color = "#aaa";
+      placeholder.style.fontStyle = "italic";
+      placeholder.style.listStyle = "none";
+      ul.appendChild(placeholder);
+    } else {
+      catItems.forEach(i => {
         const li = document.createElement("li");
         li.className = "item-row";
         li.draggable = true;
@@ -65,9 +81,9 @@ function renderShoppingList() {
           </span>
           <input type="text" class="amount-input" data-id="${i.id}" value="${i.amount || ""}" placeholder="1">
         `;
-
         ul.appendChild(li);
       });
+    }
 
     box.appendChild(ul);
     listContainer.appendChild(box);
@@ -76,6 +92,7 @@ function renderShoppingList() {
   attachHandlers();
   enableDragDrop();
 }
+
 
 /* ===============================
    2. Handlers & Updates
@@ -175,12 +192,26 @@ function enableDragDrop() {
   });
 
   allCats.forEach(catBox => {
-    catBox.addEventListener("dragover", e => e.preventDefault());
+    // ✅ highlight while dragging over
+    catBox.addEventListener("dragover", e => {
+      e.preventDefault();
+      catBox.classList.add("drag-over");
+    });
+
+    // ✅ remove highlight when leaving
+    catBox.addEventListener("dragleave", () => {
+      catBox.classList.remove("drag-over");
+    });
+
+    // ✅ handle drop + cleanup
     catBox.addEventListener("drop", async e => {
       e.preventDefault();
+      catBox.classList.remove("drag-over");
       if (!dragged) return;
+
       const newCat = catBox.dataset.cat;
       const id = dragged.dataset.id;
+
       try {
         const res = await fetch(`/api/shopping_list/${id}`, {
           method: "PATCH",
@@ -196,21 +227,32 @@ function enableDragDrop() {
   });
 }
 
+
 /* ===============================
-   5. Ingredient input → add on Enter
+   5. Ingredient input → add on Enter (manual only)
    =============================== */
 if (ingredientInput) {
   ingredientInput.addEventListener("keydown", async e => {
+    const suggestBox = document.getElementById("suggestBox");
+
+    // 🔒 Stop if a suggestion is being selected or the dropdown is visible
+    if (window.selectingSuggestion || !suggestBox.hidden) return;
+
     if (e.key === "Enter") {
       e.preventDefault();
       const name = ingredientInput.value.trim();
       if (!name) return;
-      const cat = detectCategory(name);
+
+      // ✅ Don’t send “Other” if no clear category (lets backend keep known one)
+      const detected = detectCategory(name);
+      const cat = detected === "Other" ? null : detected;
+
       await addNewItem(name, cat);
       ingredientInput.value = "";
     }
   });
 }
+
 
 /* ===============================
    6. Add new item (de-dupe safe)
@@ -234,7 +276,6 @@ async function addNewItem(name, category) {
       return;
     }
 
-    // prevent duplicates in memory
     const lower = name.toLowerCase();
     const exists = items.some(
       i => i.id === data.id || i.name.toLowerCase() === lower
@@ -242,16 +283,14 @@ async function addNewItem(name, category) {
 
     if (!exists) {
       items.push({
-  id: data.id,
-  name: data.name || name,
-  category: data.category || category,
-  crossed: false,
-  amount: "",
-  active: true    // ✅ ensure it passes render filter
-});
-
+        id: data.id,
+        name: data.name || name,
+        category: data.category || category || "Other",
+        crossed: false,
+        amount: "",
+        active: true
+      });
     } else {
-      // update existing category if changed
       items = items.map(i =>
         i.id === data.id
           ? { ...i, category: data.category || i.category }
@@ -259,12 +298,117 @@ async function addNewItem(name, category) {
       );
     }
 
-    renderShoppingList(); // refresh UI
-    console.log(`✅ Added/updated '${name}' in category '${category}'.`);
+    renderShoppingList();
+    console.log(`✅ Added/updated '${name}' in category '${category || "remembered"}'.`);
   } catch (err) {
     console.error("addNewItem() failed:", err);
   }
 }
+
+
+/* ===============================
+   6B. Suggestion dropdown with keyboard navigation
+   =============================== */
+if (ingredientInput) {
+  const suggestBox = document.getElementById("suggestBox");
+  let activeIndex = -1;
+
+  async function showSuggestions(query) {
+    if (!query) {
+      suggestBox.hidden = true;
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/shopping_list/suggestions?q=${encodeURIComponent(query)}`);
+      if (!res.ok) throw new Error(await res.text());
+      const suggestions = await res.json();
+
+      suggestBox.innerHTML = "";
+      activeIndex = -1;
+
+      // === sort so “starts with” appear first ===
+      const startsWith = [];
+      const contains = [];
+      suggestions.forEach(name => {
+        name.toLowerCase().startsWith(query.toLowerCase())
+          ? startsWith.push(name)
+          : contains.push(name);
+      });
+      const sorted = [...startsWith, ...contains];
+
+      sorted.forEach(name => {
+        const item = document.createElement("div");
+        item.className = "suggest-item";
+        item.textContent = name;
+
+        item.onclick = async () => {
+          window.selectingSuggestion = true;
+          const detected = detectCategory(name);
+          const cat = detected === "Other" ? null : detected;
+          await addNewItem(name, cat);
+          ingredientInput.value = "";
+          suggestBox.hidden = true;
+          window.selectingSuggestion = false;
+        };
+
+        suggestBox.appendChild(item);
+      });
+
+      // hide if perfect match already typed
+      const exactMatch = sorted.some(s => s.toLowerCase() === query.toLowerCase());
+      suggestBox.hidden = sorted.length === 0 || exactMatch;
+    } catch (err) {
+      console.error("Suggestion fetch failed:", err);
+      suggestBox.hidden = true;
+    }
+  }
+
+  ingredientInput.addEventListener("input", e => {
+    const query = e.target.value.trim();
+    showSuggestions(query);
+  });
+
+  ingredientInput.addEventListener("keydown", async e => {
+    const items = suggestBox.querySelectorAll(".suggest-item");
+    if (suggestBox.hidden || items.length === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      activeIndex = (activeIndex + 1) % items.length;
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      activeIndex = (activeIndex - 1 + items.length) % items.length;
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (activeIndex >= 0 && activeIndex < items.length) {
+        window.selectingSuggestion = true;
+        const name = items[activeIndex].textContent;
+        const detected = detectCategory(name);
+        const cat = detected === "Other" ? null : detected;
+        await addNewItem(name, cat);
+        ingredientInput.value = "";
+        suggestBox.hidden = true;
+        window.selectingSuggestion = false;
+      }
+      return;
+    } else {
+      return;
+    }
+
+    items.forEach((item, idx) =>
+      item.classList.toggle("active", idx === activeIndex)
+    );
+  });
+
+  // hide box when clicking outside or clearing field
+  document.addEventListener("click", e => {
+    if (!suggestBox.contains(e.target) && e.target !== ingredientInput) {
+      suggestBox.hidden = true;
+    }
+  });
+}
+
 
 /* ===============================
    7. Clear meal plan (independent)
@@ -278,6 +422,7 @@ if (clearMealPlanBtn) {
     }
   };
 }
+
 
 
 
@@ -308,7 +453,7 @@ if (saveBtn) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(plannerData)
     });
-    alert("💾 Planner saved successfully.");
+    showToast("💾 Planner saved successfully.");
   };
 }
 

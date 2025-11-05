@@ -703,6 +703,55 @@ def planner():
     return render_template("planner.html")
 
 
+# ============================================================
+#  🧠 Auto-suggest for ingredient input (prefix-biased)
+# ============================================================
+@app.route("/api/shopping_list/suggestions")
+def api_shopping_list_suggestions():
+    """Return distinct item names that begin with (or contain) the query."""
+    q = request.args.get("q", "").strip().lower()
+
+    with get_conn() as conn:
+        c = conn.cursor()
+        if q:
+            # 1️⃣ Names that start with query (highest priority)
+            c.execute("""
+                SELECT DISTINCT name
+                  FROM shopping_list
+                 WHERE LOWER(name) LIKE ?
+                 ORDER BY name
+                 LIMIT 10
+            """, (f"{q}%",))
+            start_matches = [r[0] for r in c.fetchall()]
+
+            # 2️⃣ Names that contain query (secondary)
+            remaining_slots = max(0, 10 - len(start_matches))
+            contain_matches = []
+            if remaining_slots > 0:
+                c.execute("""
+                    SELECT DISTINCT name
+                      FROM shopping_list
+                     WHERE LOWER(name) LIKE ?
+                       AND LOWER(name) NOT LIKE ?
+                     ORDER BY name
+                     LIMIT ?
+                """, (f"%{q}%", f"{q}%", remaining_slots))
+                contain_matches = [r[0] for r in c.fetchall()]
+
+            names = start_matches + contain_matches
+
+        else:
+            # Default: first few active names alphabetically
+            c.execute("""
+                SELECT DISTINCT name
+                  FROM shopping_list
+                 WHERE active = 1
+                 ORDER BY name
+                 LIMIT 10
+            """)
+            names = [r[0] for r in c.fetchall()]
+
+    return jsonify(names)
 
 
 
@@ -877,102 +926,109 @@ def api_shopping_list_get():
 
 
 
+# ============================================================
+#  🧾 Add new shopping list item (de-dupe + category memory)
+# ============================================================
 @app.route("/api/shopping_list", methods=["POST"])
 def api_shopping_list_post():
     data = request.get_json(force=True)
-    name = data.get("name", "").strip()
-    if not name:
-        return jsonify({"error": "Missing name"}), 400
+    now = datetime.now().isoformat(timespec="seconds")
 
-    category = data.get("category") or "Other"
-    amount = data.get("amount", "")
-    crossed = 0
-    active = 1
+    # --- safer name + category extraction ---
+    name = (data.get("name") or "").strip()
+    category = data.get("category") or None
+
+    if not name:
+        return jsonify({"error": "Missing item name"}), 400
+
+
+    now = datetime.now().isoformat(timespec="seconds")
 
     with get_conn() as conn:
         c = conn.cursor()
 
-        # Check if this item already exists (case-insensitive)
-        c.execute("SELECT id FROM shopping_list WHERE LOWER(name)=LOWER(?)", (name,))
-        row = c.fetchone()
+        # 🔍 Check if item already exists (case-insensitive)
+        c.execute("""
+            SELECT id, category, active
+              FROM shopping_list
+             WHERE LOWER(name) = LOWER(?)
+             LIMIT 1
+        """, (name,))
+        existing = c.fetchone()
 
-        if row:
-            # Reactivate existing row
+        if existing:
+            existing_id, prev_cat, prev_active = existing
+
+            # 🔁 Reactivate + remember category if previously set
             c.execute("""
                 UPDATE shopping_list
-                   SET category=?,
-                       active=1,
-                       crossed=0,
-                       updated_at=CURRENT_TIMESTAMP
-                 WHERE id=?;
-            """, (category, row[0]))
+                   SET active = 1,
+                       category = COALESCE(?, category),
+                       updated_at = ?
+                 WHERE id = ?
+            """, (category or prev_cat, now, existing_id))
             conn.commit()
-            print(f"♻️ Reactivated existing item '{name}' → {category}")
-            return jsonify({"id": row[0], "name": name, "category": category})
+            return jsonify({
+                "id": existing_id,
+                "name": name,
+                "category": category or prev_cat
+            })
 
-        else:
-            # Insert new row
-            c.execute("""
-                INSERT INTO shopping_list (name, category, amount, crossed, active)
-                VALUES (?, ?, ?, ?, ?);
-            """, (name, category, amount, crossed, active))
-            conn.commit()
-            new_id = c.lastrowid
-            print(f"✅ Added new item '{name}' → {category}")
-            return jsonify({"id": new_id, "name": name, "category": category})
+        # ➕ Otherwise, insert brand new
+        c.execute("""
+            INSERT INTO shopping_list (name, category, active, updated_at)
+            VALUES (?, ?, 1, ?)
+        """, (name, category, now))
+        conn.commit()
+        new_id = c.lastrowid
 
-
-
-
+    return jsonify({"id": new_id, "name": name, "category": category})
 
 
+# ============================================================
+#  🔧 Update existing shopping list item (PATCH)
+# ============================================================
 @app.route("/api/shopping_list/<int:item_id>", methods=["PATCH"])
 def api_shopping_list_patch(item_id):
+    """Update one or more fields of a shopping list item."""
     data = request.get_json(force=True)
+    now = datetime.now().isoformat(timespec="seconds")
 
     with get_conn() as conn:
         c = conn.cursor()
 
-        # --- Update category (drag-drop)
+        # Update whichever fields are present in the JSON body
         if "category" in data:
             c.execute("""
                 UPDATE shopping_list
-                   SET category = ?,
-                       updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ?;
-            """, (data["category"], item_id))
+                   SET category = ?, updated_at = ?
+                 WHERE id = ?
+            """, (data["category"], now, item_id))
 
-        # --- Update amount
         if "amount" in data:
             c.execute("""
                 UPDATE shopping_list
-                   SET amount = ?,
-                       updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ?;
-            """, (data["amount"], item_id))
+                   SET amount = ?, updated_at = ?
+                 WHERE id = ?
+            """, (data["amount"], now, item_id))
 
-        # --- Update crossed (purchased)
         if "crossed" in data:
             c.execute("""
                 UPDATE shopping_list
-                   SET crossed = ?,
-                       updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ?;
-            """, (int(data["crossed"]), item_id))
+                   SET crossed = ?, updated_at = ?
+                 WHERE id = ?
+            """, (int(data["crossed"]), now, item_id))
 
-        # --- Update active (reactivate / deactivate if needed)
         if "active" in data:
             c.execute("""
                 UPDATE shopping_list
-                   SET active = ?,
-                       updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ?;
-            """, (int(data["active"]), item_id))
+                   SET active = ?, updated_at = ?
+                 WHERE id = ?
+            """, (int(data["active"]), now, item_id))
 
         conn.commit()
 
     return jsonify({"status": "ok"})
-
 
 
 @app.route("/api/shopping_list/<int:item_id>", methods=["DELETE"])
