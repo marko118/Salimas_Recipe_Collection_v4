@@ -5,6 +5,7 @@
   --background: #f0eedd;
   --text-color: #333;
 }
+
 body {
   background: var(--background);
   color: var(--text-color);
@@ -18,10 +19,11 @@ body {
   padding: 1.5rem 2rem;
   background: #fff;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.planner-v3 h2, .planner-v3 h3 {
+.planner-v3 h2,
+.planner-v3 h3 {
   color: var(--brand-dark, #0a8274);
   margin-top: 0;
 }
@@ -45,14 +47,18 @@ body {
   flex-wrap: wrap;
   gap: .6rem;
   margin: 1rem 0 1.5rem;
-  position: relative;    /* ✅ anchor for suggestion box positioning */
+  position: relative;
+  /* ✅ anchor for suggestion box positioning */
 }
 
 /* === Refine Add-item input width (responsive, not fixed) === */
 .planner-controls input {
-  flex: 1 1 auto;          /* allow it to grow/shrink naturally */
-  max-width: 260px;        /* cap width so it matches one category column */
-  min-width: 180px;        /* keeps it usable on small screens */
+  flex: 1 1 auto;
+  /* allow it to grow/shrink naturally */
+  max-width: 260px;
+  /* cap width so it matches one category column */
+  min-width: 180px;
+  /* keeps it usable on small screens */
   padding: .5rem .6rem;
   border: 1px solid #ccc;
   border-radius: 6px;
@@ -68,6 +74,7 @@ body {
   cursor: pointer;
   transition: background .2s;
 }
+
 .planner-controls button:hover {
   background: var(--brand-dark, #0a8274);
 }
@@ -75,39 +82,51 @@ body {
 /* --- Shopping List Grid --- */
 /* === True vertical masonry layout (multi-column) === */
 .category-grid {
-  column-count: 4;          /* how many columns on desktop */
-  column-gap: 1rem;         /* space between columns */
+  column-count: 4;
+  /* how many columns on desktop */
+  column-gap: 1rem;
+  /* space between columns */
   width: 100%;
   margin-top: 1rem;
 }
 
 @media (max-width: 1200px) {
-  .category-grid { column-count: 3; }
+  .category-grid {
+    column-count: 3;
+  }
 }
+
 @media (max-width: 900px) {
-  .category-grid { column-count: 2; }
+  .category-grid {
+    column-count: 2;
+  }
 }
+
 @media (max-width: 600px) {
-  .category-grid { column-count: 1; }
+  .category-grid {
+    column-count: 1;
+  }
 }
 
 /* Each category box */
 .category {
   display: inline-block;
-  width: 95%;               /* narrower box within each column */
-  margin: 0 auto 0.8rem;    /* center it horizontally */
+  width: 95%;
+  /* narrower box within each column */
+  margin: 0 auto 0.8rem;
+  /* center it horizontally */
   background: #fff;
   border: 1px solid #ddd;
   border-radius: 8px;
   padding: 0.6rem 0.8rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
   break-inside: avoid;
 }
 
 .category:hover {
   transform: translateY(-2px);
-  box-shadow: 0 3px 8px rgba(0,0,0,0.12);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
 }
 
 /* Category header */
@@ -125,6 +144,7 @@ body {
   margin: 0;
   padding: 0;
 }
+
 .category li {
   display: flex;
   align-items: center;
@@ -150,6 +170,7 @@ body {
   box-shadow: none;
   text-align: center;
 }
+
 .category.empty h3 {
   border: none;
   color: #aaa;
@@ -166,21 +187,25 @@ body {
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 1rem;
 }
+
 .recipe-card {
   background: #f9f9f9;
   border: 1px solid #ddd;
   border-radius: 10px;
   padding: 1rem;
 }
+
 .recipe-card h4 {
   margin: 0 0 .5rem;
   color: #1a2c5b;
 }
+
 .recipe-card ul {
   list-style: none;
   margin: 0;
   padding: 0;
 }
+
 .recipe-card li {
   font-size: 0.95rem;
   line-height: 1.4;
@@ -203,20 +228,24 @@ body {
   background: #fafafa;
   padding: 1rem;
 }
+
 .meal-day h4 {
   margin-top: 0;
   border-bottom: 1px solid #eee;
   padding-bottom: .3rem;
 }
+
 .meal-slot {
   margin-top: .5rem;
 }
+
 .meal-slot label {
   display: block;
   font-weight: 600;
   color: #333;
   margin-bottom: .2rem;
 }
+
 .meal-slot input {
   width: 100%;
   padding: .4rem .5rem;
@@ -227,26 +256,31 @@ body {
 /* --- Overlay --- */
 #overlay {
   position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  background: rgba(255,255,255,0.96);
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.96);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 3000;
 }
+
 .overlay-box {
   background: #fff;
   border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   padding: 1.5rem 2rem;
   max-width: 600px;
   width: 90%;
 }
+
 .overlay-buttons {
   text-align: center;
   margin-top: 1rem;
 }
+
 .overlay-buttons button {
   margin: 0 .3rem;
 }
@@ -256,10 +290,12 @@ body {
   .planner-controls {
     flex-direction: column;
   }
+
   .planner-controls input {
     width: 100%;
   }
 }
+
 /* --- Force overlay hidden state to truly hide it --- */
 #overlay[hidden] {
   display: none !important;
@@ -283,7 +319,7 @@ body {
   color: #fff;
   padding: 0.6rem 1rem;
   border-radius: 8px;
-  box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
   font-size: 0.95rem;
   opacity: 0;
   transform: translateY(10px);
@@ -291,10 +327,39 @@ body {
 }
 
 @keyframes fadeInOut {
-  0% { opacity: 0; transform: translateY(10px); }
-  10%, 80% { opacity: 1; transform: translateY(0); }
-  100% { opacity: 0; transform: translateY(-10px); }
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  10%,
+  80% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
 }
+
+/* === Flash animation for newly added list items === */
+@keyframes flashHighlight {
+  0% {
+    background-color: rgba(142, 237, 229, 0.9);
+  }
+
+  100% {
+    background-color: transparent;
+  }
+}
+
+.item-row.flash {
+  animation: flashHighlight 1.1s ease-out;
+}
+
+
 
 
 /* === Meal plan grid === */
@@ -304,20 +369,25 @@ body {
   margin-top: 1rem;
   font-size: 0.95rem;
 }
-.meal-grid-table th, .meal-grid-table td {
+
+.meal-grid-table th,
+.meal-grid-table td {
   border: 1px solid #ccc;
   padding: 0.5rem;
   text-align: left;
 }
+
 .meal-grid-table th {
   background: var(--brand, #87d6d4);
   color: white;
 }
+
 .meal-grid-table td[contenteditable="true"] {
   background: #fff;
   min-width: 120px;
   cursor: text;
 }
+
 .meal-grid-table td[contenteditable="true"]:focus {
   outline: 2px solid var(--brand-dark, #0a8274);
   background: #f0fefc;
@@ -327,6 +397,7 @@ body {
   outline: 2px dashed var(--brand, #87d6d4);
   background: #e6f9f8;
 }
+
 .recipe-card.dragging {
   opacity: 0.5;
   transform: scale(0.97);
@@ -337,10 +408,12 @@ body {
   opacity: 0.5;
   background: #f0fdfc;
 }
+
 .category.drag-over {
   outline: 2px dashed var(--brand, #87d6d4);
   background: #f8fffe;
 }
+
 .category.drag-over {
   transform: scale(1.02);
   transition: transform 0.15s ease;
@@ -372,10 +445,12 @@ body {
   cursor: pointer;
   transition: transform 0.1s ease, color 0.2s;
 }
+
 .remove-recipe:hover {
   transform: scale(1.1);
   color: #a00;
 }
+
 /* --- Selected Recipes Header --- */
 .section-header {
   display: flex;
@@ -394,6 +469,7 @@ body {
   cursor: pointer;
   transition: background 0.2s;
 }
+
 .add-to-list:hover {
   background: var(--brand-dark, #0a8274);
 }
@@ -404,9 +480,11 @@ body {
   color: var(--brand-dark);
   font-weight: 600;
 }
+
 .recipe-link:hover {
   text-decoration: underline;
 }
+
 .link-icon {
   margin-left: 0.4rem;
   font-size: 0.95rem;
@@ -430,6 +508,7 @@ body {
   opacity: 1;
   transform: scale(1.1);
 }
+
 /* === Hide Clear Selections button on Planner v3 page === */
 body[data-page="planner-v3"] #clearSelectedBtn {
   display: none !important;
@@ -437,33 +516,44 @@ body[data-page="planner-v3"] #clearSelectedBtn {
 
 /* === Remove top divider line above Shopping List === */
 #shoppingListSection {
-  border-top: none !important;   /* hides the line */
-  margin-top: 0 !important;      /* pulls it up */
-  padding-top: 0.3rem !important;/* tiny breathing space */
+  border-top: none !important;
+  /* hides the line */
+  margin-top: 0 !important;
+  /* pulls it up */
+  padding-top: 0.3rem !important;
+  /* tiny breathing space */
 }
 
 /* === Align Add-to-List button beside the Selected Recipes title === */
 .section-header {
   display: flex;
-  align-items: center;     /* vertically align title + button */
-  gap: 0.6rem;             /* space between them */
-  flex-wrap: wrap;         /* keep tidy if screen is narrow */
+  align-items: center;
+  /* vertically align title + button */
+  gap: 0.6rem;
+  /* space between them */
+  flex-wrap: wrap;
+  /* keep tidy if screen is narrow */
 }
 
 .section-header h3 {
-  margin: 0;               /* remove default spacing */
+  margin: 0;
+  /* remove default spacing */
 }
 
 .section-header .add-to-list {
-  margin-left: auto;       /* pushes it to the right edge of the header line */
+  margin-left: auto;
+  /* pushes it to the right edge of the header line */
 }
 
 /* === Force Add-to-List beside the title, not on the right === */
 #recipesInPlanner .section-header {
   display: flex !important;
-  justify-content: flex-start !important; /* keep items on the left */
-  align-items: center !important;          /* align vertically */
-  gap: 0.5rem !important;                  /* space between title and button */
+  justify-content: flex-start !important;
+  /* keep items on the left */
+  align-items: center !important;
+  /* align vertically */
+  gap: 0.5rem !important;
+  /* space between title and button */
 }
 
 #recipesInPlanner .section-header h3 {
@@ -477,26 +567,32 @@ body[data-page="planner-v3"] #clearSelectedBtn {
 
 /* === Add spacing when the 🔗 icon appears before recipe title === */
 .link-icon {
-  margin-right: 0.4rem;    /* space between icon and title */
-  font-size: 0.9em;        /* slightly smaller for balance */
-  opacity: 0.85;           /* a touch lighter */
-  vertical-align: middle;  /* align with text baseline */
+  margin-right: 0.4rem;
+  /* space between icon and title */
+  font-size: 0.9em;
+  /* slightly smaller for balance */
+  opacity: 0.85;
+  /* a touch lighter */
+  vertical-align: middle;
+  /* align with text baseline */
 }
 
 /* === Custom Suggestion Dropdown (live + keyboard) === */
 .suggest-box {
   position: absolute;
-  top: 100%;             /* appear directly below the input */
+  top: 100%;
+  /* appear directly below the input */
   left: 0;
   background: #fff;
   border: 1px solid #ccc;
   border-radius: 6px;
   max-height: 200px;
   overflow-y: auto;
-  box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
   width: 100%;
   max-width: 260px;
-  margin-top: 0.3rem;    /* small gap below input */
+  margin-top: 0.3rem;
+  /* small gap below input */
   z-index: 200;
 }
 
@@ -515,30 +611,37 @@ body[data-page="planner-v3"] #clearSelectedBtn {
 /* === Subtle Quantity / Note box — borderless, right-justified, grows left === */
 .qty-note {
   display: inline-block;
-  min-width: 1.6rem;            /* width of “1” */
+  min-width: 1.6rem;
+  /* width of “1” */
   max-width: 12rem;
   width: fit-content;
-  text-align: right;            /* text stays right-aligned */
+  text-align: right;
+  /* text stays right-aligned */
   background: transparent;
-  color: rgba(0,0,0,0.35);      /* faint default for typed text */
+  color: rgba(0, 0, 0, 0.35);
+  /* faint default for typed text */
   font-size: 0.9rem;
   padding: 0.2rem 0.3rem;
   outline: none;
-  border: none;                 /* ✅ no visible border */
+  border: none;
+  /* ✅ no visible border */
   transition: background 0.2s ease, color 0.2s ease;
   flex-shrink: 0;
 }
 
 /* Barely visible placeholder */
 .qty-note::placeholder {
-  color: rgba(0, 0, 0, 0.08);   /* almost invisible — like a pencil trace */
+  color: rgba(0, 0, 0, 0.08);
+  /* almost invisible — like a pencil trace */
 }
 
 /* When focused or when it has content */
 .qty-note:focus,
 .qty-note:not(:placeholder-shown) {
-  background: rgba(255,255,255,0.6);  /* light translucent background */
-  color: #222;                        /* normal readable text */
+  background: rgba(255, 255, 255, 0.6);
+  /* light translucent background */
+  color: #222;
+  /* normal readable text */
 }
 
 /* Responsive tweak */
@@ -547,6 +650,7 @@ body[data-page="planner-v3"] #clearSelectedBtn {
     max-width: 8rem;
   }
 }
+
 /* === Clear List button styling === */
 .danger-btn {
   border: 1px solid #888;
@@ -557,6 +661,7 @@ body[data-page="planner-v3"] #clearSelectedBtn {
   cursor: pointer;
   transition: all 0.2s ease;
 }
+
 .danger-btn:hover {
   background: #f5f5f5;
 }
@@ -567,25 +672,33 @@ body[data-page="planner-v3"] #clearSelectedBtn {
   opacity: 0.5;
   transition: opacity 0.2s ease;
 }
+
 /* === Multi-column layout for overlay list === */
 #overlayContent {
-  column-count: 2;           /* ✅ Split into 2 columns */
-  column-gap: 2rem;          /* space between columns */
-  max-height: 80vh;          /* prevent overflow on screen */
-  overflow-y: auto;          /* scrollable if very long */
+  column-count: 2;
+  /* ✅ Split into 2 columns */
+  column-gap: 2rem;
+  /* space between columns */
+  max-height: 80vh;
+  /* prevent overflow on screen */
+  overflow-y: auto;
+  /* scrollable if very long */
   padding-right: 1rem;
 }
-#overlayContent > div {
+
+#overlayContent>div {
   break-inside: avoid-column;
 }
 
 
 /* Category layout helpers */
-#overlayContent > div:first-child {
+#overlayContent>div:first-child {
   margin-top: 0;
 }
+
 #overlayContent div[style*="font-weight"] {
-  break-after: avoid; /* keep category header with its items */
+  break-after: avoid;
+  /* keep category header with its items */
 }
 
 /* === Overlay header and date === */
@@ -604,6 +717,7 @@ body[data-page="planner-v3"] #clearSelectedBtn {
 }
 
 @media print {
+
   /* Hide everything except the overlay */
   body * {
     visibility: hidden !important;
@@ -640,7 +754,8 @@ body[data-page="planner-v3"] #clearSelectedBtn {
   }
 
   #overlayContent {
-    display: block !important;           /* ✅ abandon columns in print */
+    display: block !important;
+    /* ✅ abandon columns in print */
     column-count: initial !important;
     font-family: "Segoe UI", Helvetica, Arial, sans-serif;
     font-size: 13px;
@@ -648,7 +763,7 @@ body[data-page="planner-v3"] #clearSelectedBtn {
     margin-top: 1rem;
   }
 
-  #overlayContent > div {
+  #overlayContent>div {
     break-inside: avoid;
     page-break-inside: avoid;
   }

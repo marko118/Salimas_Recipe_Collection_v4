@@ -235,23 +235,30 @@ if (ingredientInput) {
   ingredientInput.addEventListener("keydown", async e => {
     const suggestBox = document.getElementById("suggestBox");
 
-    // 🔒 Stop if a suggestion is being selected or the dropdown is visible
-    if (window.selectingSuggestion || !suggestBox.hidden) return;
-
+    // --- Enter pressed ---
     if (e.key === "Enter") {
       e.preventDefault();
+
+      // If we're selecting or a suggestion is highlighted, skip manual add
+      const activeItem = suggestBox.querySelector(".active");
+      if (window.selectingSuggestion || (!suggestBox.hidden && activeItem)) {
+        return; // let Section 6B handle it
+      }
+
+      // Otherwise add the manually typed text
       const name = ingredientInput.value.trim();
       if (!name) return;
 
-      // ✅ Don’t send “Other” if no clear category (lets backend keep known one)
       const detected = detectCategory(name);
       const cat = detected === "Other" ? null : detected;
 
       await addNewItem(name, cat);
       ingredientInput.value = "";
+      suggestBox.hidden = true; // close suggestions
     }
   });
 }
+
 
 
 /* ===============================
@@ -299,11 +306,27 @@ async function addNewItem(name, category) {
     }
 
     renderShoppingList();
-    console.log(`✅ Added/updated '${name}' in category '${category || "remembered"}'.`);
+
+    // 🎨 Highlight the newly added list item
+    const targetCat = data.category || category || "Other";
+    const catBox = document.querySelector(`.category[data-cat="${targetCat}"]`);
+
+    if (catBox) {
+      // find the last list item inside this category
+      const listItems = catBox.querySelectorAll("li.item-row");
+      const newestItem = listItems[listItems.length - 1];
+      if (newestItem) {
+        newestItem.classList.add("flash");
+        setTimeout(() => newestItem.classList.remove("flash"), 700);
+      }
+    }
+
+    console.log(`✅ Added/updated '${name}' in category '${targetCat}'.`);
   } catch (err) {
     console.error("addNewItem() failed:", err);
   }
 }
+
 
 
 /* ===============================
@@ -495,13 +518,13 @@ if (generateBtn) {
    10. Category detection
    =============================== */
 const KEYMAP = {
-  "Dairy & Eggs": ["milk","cheese","cream","butter","yog","egg"],
-  "Produce": ["apple","banana","tomato","onion","pepper","carrot","potato","garlic","lettuce","spinach","herb","lemon","lime","mushroom","broccoli"],
-  "Meat & Fish": ["chicken","beef","lamb","ham","bacon","pork","turkey","fish","salmon","tuna","sausage","mince"],
-  "Frozen": ["frozen","peas","ice","chips","sweetcorn","berries","pizza"],
-  "Pantry": ["bread","rice","pasta","oil","salt","flour","spice","sugar","sauce","tin","jar","stock","broth","cereal"],
-  "Snacks": ["crisps","bar","chocolate","sweet","biscuit","snack"],
-  "Toiletries": ["soap","toothpaste","tooth","colgate","aquafresh","shampoo","roll","tissue"],
+  "Dairy & Eggs": ["milk", "cheese", "cream", "butter", "yog", "egg"],
+  "Produce": ["apple", "banana", "tomato", "onion", "pepper", "carrot", "potato", "garlic", "lettuce", "spinach", "herb", "lemon", "lime", "mushroom", "broccoli"],
+  "Meat & Fish": ["chicken", "beef", "lamb", "ham", "bacon", "pork", "turkey", "fish", "salmon", "tuna", "sausage", "mince"],
+  "Frozen": ["frozen", "peas", "ice", "chips", "sweetcorn", "berries", "pizza"],
+  "Pantry": ["bread", "rice", "pasta", "oil", "salt", "flour", "spice", "sugar", "sauce", "tin", "jar", "stock", "broth", "cereal"],
+  "Snacks": ["crisps", "bar", "chocolate", "sweet", "biscuit", "snack"],
+  "Toiletries": ["soap", "toothpaste", "tooth", "colgate", "aquafresh", "shampoo", "roll", "tissue"],
   "Other": []
 };
 
@@ -514,6 +537,23 @@ function detectCategory(name) {
 }
 
 /* ===============================
-   11. Init
+   11. Toast Notifications
+   =============================== */
+function showToast(message, type = "info") {
+  const container = document.getElementById("toastContainer");
+  if (!container) return;
+
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+
+  container.appendChild(toast);
+
+  // Auto remove after animation ends (~3s)
+  setTimeout(() => toast.remove(), 3000);
+}
+
+/* ===============================
+   12. Init
    =============================== */
 document.addEventListener("DOMContentLoaded", loadShoppingList);
