@@ -306,7 +306,7 @@ body {
 /* === Toast notifications === */
 #toastContainer {
   position: fixed;
-  bottom: 20px;
+  top: 20px;
   right: 20px;
   z-index: 4000;
   display: flex;
@@ -665,6 +665,11 @@ body[data-page="planner-v3"] #clearSelectedBtn {
 .danger-btn:hover {
   background: #f5f5f5;
 }
+
+#clearMealPlanBtn[data-confirm="true"] {
+  background-color: #c0392b;   /* soft warning red */
+}
+
 
 /* Cross-off style in overlay */
 .overlay-item.crossed {

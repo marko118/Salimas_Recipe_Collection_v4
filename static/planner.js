@@ -15,9 +15,18 @@ const clearMealPlanBtn = document.getElementById("clearMealPlanBtn"); // ✅ new
 
 /* --- Category list --- */
 const categories = [
-  "Produce", "Dairy & Eggs", "Meat & Fish",
-  "Pantry", "Frozen", "Snacks", "Toiletries", "Other"
+  "Dairy & Eggs",
+  "Meat & Fish",
+  "Chilled",
+  "Frozen",
+  "Produce",
+  "Pantry",
+  "Snacks & Drinks",
+  "Toiletries",
+  "Household",
+  "Other"
 ];
+
 
 let items = [];
 
@@ -120,18 +129,45 @@ function attachHandlers() {
       }
     };
 
-    // --- delete on double-click ---
+    // --- delete on double-click (two-step confirm + red feedback) ---
+    let deleteArmed = false;
+
     span.ondblclick = async () => {
       const id = span.closest(".item-row").dataset.id;
       const name = span.textContent.trim();
-      if (confirm(`Delete "${name}" from list?`)) {
-        try {
-          const res = await fetch(`/api/shopping_list/${id}`, { method: "DELETE" });
-          if (!res.ok) throw new Error(await res.text());
+      const li = span.closest(".item-row");
+
+      // First double-click → warn & highlight red
+      if (!deleteArmed) {
+        deleteArmed = true;
+        li.classList.add("delete-confirm");
+        showToast(`⚠️ Tap again to delete "${name}"`);
+
+        // reset after 2.5s if no second double-click
+        setTimeout(() => {
+          deleteArmed = false;
+          li.classList.remove("delete-confirm");
+        }, 2500);
+        return;
+      }
+
+      // Second double-click → confirm delete
+      li.classList.add("deleting");
+      try {
+        const res = await fetch(`/api/shopping_list/${id}`, { method: "DELETE" });
+        if (res.ok) {
+          showToast(`🗑️ "${name}" removed`);
           await loadShoppingList();
-        } catch (err) {
-          console.error("Delete failed:", err);
+        } else {
+          showToast("⚠️ Delete failed", "warn");
+          li.classList.remove("deleting");
         }
+      } catch (err) {
+        console.error("Delete failed:", err);
+        showToast("⚠️ Delete error", "warn");
+        li.classList.remove("deleting");
+      } finally {
+        deleteArmed = false;
       }
     };
   });
@@ -158,18 +194,39 @@ function attachHandlers() {
 /* ===============================
    3. Clear List button
    =============================== */
+/* ===============================
+   Clear List (double-tap confirm)
+   =============================== */
 if (clearBtn) {
+  let confirmTimeout = null;
+
   clearBtn.onclick = async () => {
-    if (confirm("Start a new shopping list for everyone?")) {
-      try {
-        const res = await fetch("/api/shopping_list/clear", { method: "POST" });
-        if (!res.ok) throw new Error(await res.text());
-        await loadShoppingList(); // reloads empty list
-        console.log("🧹 Cleared: new shared list started.");
-      } catch (err) {
-        console.error("Clear failed:", err);
-      }
+    if (clearBtn.dataset.confirm === "true") {
+      // --- Second tap confirmed ---
+      clearBtn.textContent = "Clearing...";
+      clearBtn.disabled = true;
+
+      await fetch("/api/shopping_list/clear", { method: "POST" });
+      showToast("🧹 Shopping list cleared");
+
+      clearBtn.textContent = "Clear";
+      clearBtn.disabled = false;
+      clearBtn.dataset.confirm = "false";
+
+      loadShoppingList();
+      return;
     }
+
+    // --- First tap: ask for confirmation ---
+    clearBtn.dataset.confirm = "true";
+    const originalText = clearBtn.textContent;
+    clearBtn.textContent = "Tap again to confirm";
+
+    // Reset after 3 seconds if not tapped again
+    confirmTimeout = setTimeout(() => {
+      clearBtn.textContent = originalText;
+      clearBtn.dataset.confirm = "false";
+    }, 3000);
   };
 }
 
@@ -266,6 +323,15 @@ if (ingredientInput) {
    =============================== */
 async function addNewItem(name, category) {
   try {
+    // Normalize name
+    const lower = name.toLowerCase().trim();
+
+    // 🔒 If the item already exists in the current list, reuse its stored category
+    const existing = items.find(i => i.name.toLowerCase() === lower);
+    if (existing) {
+      category = existing.category || category || "Other";
+    }
+
     const res = await fetch("/api/shopping_list", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -283,7 +349,6 @@ async function addNewItem(name, category) {
       return;
     }
 
-    const lower = name.toLowerCase();
     const exists = items.some(
       i => i.id === data.id || i.name.toLowerCase() === lower
     );
@@ -436,29 +501,56 @@ if (ingredientInput) {
 /* ===============================
    7. Clear meal plan (independent)
    =============================== */
+/* ===============================
+   Clear Meal Plan (double-tap confirm)
+   =============================== */
 if (clearMealPlanBtn) {
-  clearMealPlanBtn.onclick = () => {
-    if (confirm("Clear all meal plan selections?")) {
-      const selects = document.querySelectorAll("#mealGridContainer select");
-      selects.forEach(sel => (sel.value = ""));
-      console.log("Meal plan cleared");
+  let confirmTimeout = null;
+
+  clearMealPlanBtn.onclick = async () => {
+    if (clearMealPlanBtn.dataset.confirm === "true") {
+      // --- Second tap confirmed ---
+      clearMealPlanBtn.textContent = "Clearing...";
+      clearMealPlanBtn.disabled = true;
+
+      // 1️⃣ Remove saved plan from localStorage
+      localStorage.removeItem("salimaMealPlan");
+
+      // 2️⃣ Clear the visual grid
+      const grid = document.getElementById("mealGridContainer");
+      if (grid) grid.innerHTML = "";
+
+      // 3️⃣ Rebuild empty grid (respect current toggle)
+      const startDay = document.getElementById("dayToggle")?.value || "sun";
+      if (typeof buildMealGrid === "function") {
+        buildMealGrid(startDay);
+      }
+
+      // 4️⃣ Show feedback
+      showToast("🧽 Meal plan cleared");
+
+      // 5️⃣ Reset button
+      clearMealPlanBtn.textContent = "Clear Meal Plan";
+      clearMealPlanBtn.disabled = false;
+      clearMealPlanBtn.dataset.confirm = "false";
+
+      return;
     }
+
+    // --- First tap: ask for confirmation ---
+    clearMealPlanBtn.dataset.confirm = "true";
+    const originalText = clearMealPlanBtn.textContent;
+    clearMealPlanBtn.textContent = "Tap again to confirm";
+
+    confirmTimeout = setTimeout(() => {
+      clearMealPlanBtn.textContent = originalText;
+      clearMealPlanBtn.dataset.confirm = "false";
+    }, 3000);
   };
 }
 
 
 
-
-
-if (clearMealPlanBtn) {
-  clearMealPlanBtn.onclick = () => {
-    if (confirm("Clear all meal plan selections?")) {
-      const selects = document.querySelectorAll("#mealGridContainer select");
-      selects.forEach(sel => (sel.value = ""));
-      console.log("Meal plan cleared");
-    }
-  };
-}
 
 /* ===============================
    8. Save Planner (combined snapshot)
@@ -515,23 +607,70 @@ if (generateBtn) {
 }
 
 /* ===============================
+   9B. Overlay controls (Close / Copy / Print)
+   =============================== */
+const overlayEl = document.getElementById("overlay");
+const closeBtn = document.getElementById("closeOverlay");
+const copyBtn = document.getElementById("copyBtn");
+const printBtn = document.getElementById("printBtn");
+
+// --- Close overlay ---
+if (closeBtn) {
+  closeBtn.onclick = () => {
+    overlayEl.hidden = true;
+  };
+}
+
+// --- Copy list text to clipboard ---
+if (copyBtn) {
+  copyBtn.onclick = () => {
+    const text = document.getElementById("overlayContent").innerText;
+    navigator.clipboard.writeText(text)
+      .then(() => showToast("📋 Shopping list copied to clipboard"))
+      .catch(() => showToast("⚠️ Copy failed", "warn"));
+  };
+}
+
+// --- Print overlay contents ---
+if (printBtn) {
+  printBtn.onclick = () => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+    const html = `
+      <html>
+        <head><title>Shopping List</title></head>
+        <body style="font-family:sans-serif; padding:1rem;">
+          <h3>🧾 Shopping List</h3>
+          <pre>${document.getElementById("overlayContent").innerText}</pre>
+        </body>
+      </html>`;
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.print();
+  };
+}
+
+/* ===============================
    10. Category detection
    =============================== */
 const KEYMAP = {
-  "Dairy & Eggs": ["milk", "cheese", "cream", "butter", "yog", "egg"],
-  "Produce": ["apple", "banana", "tomato", "onion", "pepper", "carrot", "potato", "garlic", "lettuce", "spinach", "herb", "lemon", "lime", "mushroom", "broccoli"],
-  "Meat & Fish": ["chicken", "beef", "lamb", "ham", "bacon", "pork", "turkey", "fish", "salmon", "tuna", "sausage", "mince"],
-  "Frozen": ["frozen", "peas", "ice", "chips", "sweetcorn", "berries", "pizza"],
-  "Pantry": ["bread", "rice", "pasta", "oil", "salt", "flour", "spice", "sugar", "sauce", "tin", "jar", "stock", "broth", "cereal"],
-  "Snacks": ["crisps", "bar", "chocolate", "sweet", "biscuit", "snack"],
-  "Toiletries": ["soap", "toothpaste", "tooth", "colgate", "aquafresh", "shampoo", "roll", "tissue"],
+  "Dairy & Eggs": ["milk","cheese","cream","butter","yog","egg"],
+  "Produce": ["apple","banana","tomato","onion","pepper","carrot","potato","garlic","lettuce","spinach","herb","lemon","lime","mushroom","broccoli"],
+  "Meat & Fish": ["chicken","beef","lamb","ham","bacon","pork","turkey","fish","salmon","tuna","sausage","mince"],
+  "Frozen": ["frozen","peas","ice","chips","sweetcorn","berries","pizza"],
+  "Pantry": ["bread","rice","pasta","oil","salt","flour","spice","sugar","sauce","tin","jar","stock","broth","cereal"],
+  "Snacks & Drinks": ["crisps","bar","chocolate","sweet","biscuit","snack","juice","soda","cola","drink","coffee","tea"],
+  "Toiletries": ["soap","toothpaste","tooth","colgate","aquafresh","shampoo","roll","tissue"],
   "Other": []
 };
 
 function detectCategory(name) {
   const lower = name.toLowerCase();
   for (const [cat, words] of Object.entries(KEYMAP)) {
-    if (words.some(w => lower.includes(w))) return cat;
+    for (const w of words) {
+      const regex = new RegExp(`\\b${w}\\b`, "i"); // match whole word only
+      if (regex.test(lower)) return cat;
+    }
   }
   return "Other";
 }
@@ -549,7 +688,13 @@ function showToast(message, type = "info") {
 
   container.appendChild(toast);
 
-  // Auto remove after animation ends (~3s)
+  // fade out
+  setTimeout(() => {
+    toast.style.opacity = "0";
+    toast.style.transform = "translateY(10px)";
+  }, 2200);
+
+  // remove from DOM
   setTimeout(() => toast.remove(), 3000);
 }
 
