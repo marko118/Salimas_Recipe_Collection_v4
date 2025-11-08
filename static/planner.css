@@ -164,7 +164,7 @@ body {
 
 /* Empty categories */
 .category.empty {
-  opacity: 0.45;
+  opacity: 0.85;
   background: #fdfdfd;
   border-style: dashed;
   box-shadow: none;
@@ -668,6 +668,12 @@ body[data-page="planner-v3"] #clearSelectedBtn {
 
 #clearMealPlanBtn[data-confirm="true"] {
   background-color: #c0392b;   /* soft warning red */
+}
+
+button.warn {
+  background-color: #b71c1c !important;
+  color: white !important;
+  transition: background-color 0.3s ease;
 }
 
 

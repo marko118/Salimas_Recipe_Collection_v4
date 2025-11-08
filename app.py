@@ -1050,6 +1050,74 @@ def api_shopping_list_clear():
 
 
 
+# === PLANNER SAVE / LOAD / LIST ===
+from datetime import datetime
+import sqlite3, json
+from flask import request, jsonify
+
+def init_planner_table():
+    conn = sqlite3.connect("recipes_v2.db")
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS planner_saves (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            data TEXT NOT NULL,
+            created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_planner_table()
+
+
+# --- SAVE current planner snapshot ---
+@app.route("/api/planner/save", methods=["POST"])
+def api_planner_save():
+    payload = request.get_json(force=True)
+    plan_name = payload.get("name") or f"Plan {datetime.now():%Y-%m-%d %H:%M}"
+    plan_data = json.dumps(payload.get("plan", {}))
+
+    conn = sqlite3.connect("recipes_v2.db")
+    c = conn.cursor()
+    c.execute("INSERT INTO planner_saves (name, data) VALUES (?, ?)", (plan_name, plan_data))
+    conn.commit()
+    plan_id = c.lastrowid
+    conn.close()
+
+    return jsonify({"status": "ok", "id": plan_id, "name": plan_name})
+
+
+# --- LIST all saved plans ---
+@app.route("/api/planner/list")
+def api_planner_list():
+    conn = sqlite3.connect("recipes_v2.db")
+    c = conn.cursor()
+    c.execute("SELECT id, name, created FROM planner_saves ORDER BY created DESC")
+    rows = [{"id": r[0], "name": r[1], "created": r[2]} for r in c.fetchall()]
+    conn.close()
+    return jsonify(rows)
+
+
+# --- LOAD a specific plan ---
+@app.route("/api/planner/load/<int:plan_id>")
+def api_planner_load(plan_id):
+    conn = sqlite3.connect("recipes_v2.db")
+    c = conn.cursor()
+    c.execute("SELECT data FROM planner_saves WHERE id=?", (plan_id,))
+    row = c.fetchone()
+    conn.close()
+
+    if not row:
+        return jsonify({"error": "Plan not found"}), 404
+
+    try:
+        return jsonify(json.loads(row[0]))
+    except Exception as e:
+        return jsonify({"error": f"Invalid JSON: {e}"}), 500
+
+
 # ---------------------------
 # Entrypoint
 # ---------------------------

@@ -11,6 +11,7 @@ const ingredientInput = document.getElementById("ingredientInput");
 const clearBtn = document.getElementById("clearListBtn");        // ✅ updated
 const generateBtn = document.getElementById("exportBtn");        // ✅ updated
 const saveBtn = document.getElementById("savePlannerBtn");       // ✅ new
+const loadBtn = document.getElementById("loadPlannerBtn"); // ✅ new
 const clearMealPlanBtn = document.getElementById("clearMealPlanBtn"); // ✅ new
 
 /* --- Category list --- */
@@ -67,17 +68,12 @@ function renderShoppingList() {
     );
 
     // ✅ Add .empty class if no items in this category
-    if (catItems.length === 0) {
-      box.classList.add("empty");
+if (catItems.length === 0) {
+  box.classList.add("empty");
+  // ⛔ no placeholder text — keep box empty for drag/drop
+} else {
+  catItems.forEach(i => {
 
-      const placeholder = document.createElement("li");
-      placeholder.textContent = "– No items –";
-      placeholder.style.color = "#aaa";
-      placeholder.style.fontStyle = "italic";
-      placeholder.style.listStyle = "none";
-      ul.appendChild(placeholder);
-    } else {
-      catItems.forEach(i => {
         const li = document.createElement("li");
         li.className = "item-row";
         li.draggable = true;
@@ -129,45 +125,36 @@ function attachHandlers() {
       }
     };
 
-    // --- delete on double-click (two-step confirm + red feedback) ---
-    let deleteArmed = false;
-
+    // --- delete on double-click (single confirm with red flash) ---
     span.ondblclick = async () => {
       const id = span.closest(".item-row").dataset.id;
       const name = span.textContent.trim();
       const li = span.closest(".item-row");
 
-      // First double-click → warn & highlight red
-      if (!deleteArmed) {
-        deleteArmed = true;
-        li.classList.add("delete-confirm");
-        showToast(`⚠️ Tap again to delete "${name}"`);
+      // brief red flash to signal delete
+      li.style.transition = "color 0.3s ease";
+      li.style.color = "#b71c1c";
 
-        // reset after 2.5s if no second double-click
-        setTimeout(() => {
-          deleteArmed = false;
-          li.classList.remove("delete-confirm");
-        }, 2500);
+      const confirmDelete = confirm(`Delete "${name}" from list?`);
+      if (!confirmDelete) {
+        // cancelled → reset colour
+        li.style.color = "";
         return;
       }
 
-      // Second double-click → confirm delete
-      li.classList.add("deleting");
       try {
         const res = await fetch(`/api/shopping_list/${id}`, { method: "DELETE" });
         if (res.ok) {
-          showToast(`🗑️ "${name}" removed`);
+          showToast(`🗑️ "${name}" removed`, "warn");
           await loadShoppingList();
         } else {
           showToast("⚠️ Delete failed", "warn");
-          li.classList.remove("deleting");
+          li.style.color = "";
         }
       } catch (err) {
         console.error("Delete failed:", err);
         showToast("⚠️ Delete error", "warn");
-        li.classList.remove("deleting");
-      } finally {
-        deleteArmed = false;
+        li.style.color = "";
       }
     };
   });
@@ -191,11 +178,12 @@ function attachHandlers() {
   });
 }
 
+
 /* ===============================
    3. Clear List button
    =============================== */
 /* ===============================
-   Clear List (double-tap confirm)
+   Clear List (double-tap confirm with red flash)
    =============================== */
 if (clearBtn) {
   let confirmTimeout = null;
@@ -205,30 +193,38 @@ if (clearBtn) {
       // --- Second tap confirmed ---
       clearBtn.textContent = "Clearing...";
       clearBtn.disabled = true;
+      clearBtn.classList.remove("warn");
 
-      await fetch("/api/shopping_list/clear", { method: "POST" });
-      showToast("🧹 Shopping list cleared");
-
-      clearBtn.textContent = "Clear";
-      clearBtn.disabled = false;
-      clearBtn.dataset.confirm = "false";
-
-      loadShoppingList();
+      try {
+        await fetch("/api/shopping_list/clear", { method: "POST" });
+        showToast("🧹 Shopping list cleared", "success");
+        await loadShoppingList();
+      } catch (err) {
+        console.error("Clear failed:", err);
+        showToast("⚠️ Couldn't clear list", "warn");
+      } finally {
+        clearBtn.textContent = "Clear";
+        clearBtn.disabled = false;
+        clearBtn.dataset.confirm = "false";
+      }
       return;
     }
 
     // --- First tap: ask for confirmation ---
     clearBtn.dataset.confirm = "true";
+    clearBtn.classList.add("warn");             // 🔴 turn red
     const originalText = clearBtn.textContent;
-    clearBtn.textContent = "Tap again to confirm";
+    clearBtn.textContent = "Confirm Clear";
 
     // Reset after 3 seconds if not tapped again
     confirmTimeout = setTimeout(() => {
       clearBtn.textContent = originalText;
       clearBtn.dataset.confirm = "false";
+      clearBtn.classList.remove("warn");        // reset color
     }, 3000);
   };
 }
+
 
 /* ===============================
    4. Drag & Drop between categories
@@ -572,83 +568,112 @@ if (saveBtn) {
   };
 }
 
+
 /* ===============================
-   9. Overlay list
+   Load Planner button
+   =============================== */
+if (loadBtn) {
+  loadBtn.onclick = async () => {
+    try {
+      // 1️⃣ Fetch list of saved plans
+      const res = await fetch("/api/planner/list");
+      const plans = await res.json();
+
+      if (!plans.length) {
+        showToast("No saved plans found", "warn");
+        return;
+      }
+
+      // 2️⃣ Ask user which plan to load
+      const names = plans
+        .map(p => `${p.id}: ${p.name} (${p.created.slice(0, 16)})`)
+        .join("\n");
+      const choice = prompt(
+        `Enter the ID of the plan to load:\n\n${names}`
+      );
+      if (!choice) return;
+
+      // 3️⃣ Fetch and load the chosen plan
+      const loadRes = await fetch(`/api/planner/load/${choice.trim()}`);
+      if (!loadRes.ok) throw new Error(await loadRes.text());
+      const planData = await loadRes.json();
+
+      console.log("Loaded plan:", planData);
+
+      // === Apply loaded plan data to UI ===
+if (!planData || Object.keys(planData).length === 0) {
+  showToast("⚠️ This saved plan is empty", "warn");
+  return;
+}
+
+// 1️⃣ Replace shopping list data and re-render
+if (planData.shoppingList && Array.isArray(planData.shoppingList)) {
+  items = planData.shoppingList;
+  renderShoppingList();
+}
+
+// 2️⃣ Restore recipes + ingredients
+if (planData.recipes && Array.isArray(planData.recipes) && planData.recipes.length > 0) {
+  localStorage.setItem("selectedRecipes", JSON.stringify(planData.recipes));
+  if (typeof loadSelectedRecipes === "function") {
+    await loadSelectedRecipes();
+  } else {
+    console.warn("planner_recipes.js not yet loaded");
+  }
+}
+
+// 3️⃣ Restore meal plan grid (AFTER everything else)
+if (planData.mealPlanHTML) {
+  const grid = document.getElementById("mealGridContainer");
+  if (grid) grid.innerHTML = planData.mealPlanHTML;
+}
+
+
+
+
+
+      // 4️⃣ Refresh UI
+      attachHandlers();
+      enableDragDrop();
+
+      showToast(`✅ "${planData.planName || "Meal Plan"}" loaded`, "success");
+    } catch (err) {
+      console.error("Load failed:", err);
+      showToast("⚠️ Couldn't load plan", "warn");
+    }
+  };
+}
+
+
+
+/* ===============================
+   9. Copy / Share current shopping list
    =============================== */
 if (generateBtn) {
-  generateBtn.onclick = async () => {
-    const overlay = document.getElementById("overlay");
-    const content = document.getElementById("overlayContent");
-    const dateBox = document.getElementById("overlayDate");
-
-    dateBox.textContent = new Date().toLocaleString();
-    content.innerHTML = "";
-
+  generateBtn.onclick = () => {
+    const lines = [];
     categories.forEach(cat => {
       const catItems = items.filter(i => i.category === cat && i.active === true);
       if (!catItems.length) return;
-      const header = document.createElement("div");
-      header.textContent = cat.toUpperCase() + ":";
-      header.style.fontWeight = "bold";
-      content.appendChild(header);
+
+      lines.push(`${cat.toUpperCase()}:`);
       catItems.forEach(i => {
-        const line = document.createElement("div");
-        line.textContent = `• ${i.name}${i.amount ? ` (${i.amount})` : ""}`;
-        if (i.crossed) {
-          line.style.textDecoration = "line-through";
-          line.style.opacity = "0.6";
-        }
-        content.appendChild(line);
+        const symbol = i.crossed ? "✗" : "•";
+        const name = i.amount ? `${i.name} (${i.amount})` : i.name;
+        lines.push(`${symbol} ${name}`);
       });
+      lines.push(""); // blank line between categories
     });
 
-    overlay.hidden = false;
-  };
-}
-
-/* ===============================
-   9B. Overlay controls (Close / Copy / Print)
-   =============================== */
-const overlayEl = document.getElementById("overlay");
-const closeBtn = document.getElementById("closeOverlay");
-const copyBtn = document.getElementById("copyBtn");
-const printBtn = document.getElementById("printBtn");
-
-// --- Close overlay ---
-if (closeBtn) {
-  closeBtn.onclick = () => {
-    overlayEl.hidden = true;
-  };
-}
-
-// --- Copy list text to clipboard ---
-if (copyBtn) {
-  copyBtn.onclick = () => {
-    const text = document.getElementById("overlayContent").innerText;
-    navigator.clipboard.writeText(text)
+    const plainText = lines.join("\n");
+    navigator.clipboard.writeText(plainText)
       .then(() => showToast("📋 Shopping list copied to clipboard"))
       .catch(() => showToast("⚠️ Copy failed", "warn"));
   };
 }
 
-// --- Print overlay contents ---
-if (printBtn) {
-  printBtn.onclick = () => {
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
-    const html = `
-      <html>
-        <head><title>Shopping List</title></head>
-        <body style="font-family:sans-serif; padding:1rem;">
-          <h3>🧾 Shopping List</h3>
-          <pre>${document.getElementById("overlayContent").innerText}</pre>
-        </body>
-      </html>`;
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.print();
-  };
-}
+
+
 
 /* ===============================
    10. Category detection
@@ -697,6 +722,91 @@ function showToast(message, type = "info") {
   // remove from DOM
   setTimeout(() => toast.remove(), 3000);
 }
+
+// === SAVE PLANNER SNAPSHOT ===
+async function maybeSavePlanner() {
+  const confirmSave = confirm("Would you like to save this meal plan for later?");
+  if (!confirmSave) return;
+
+  const snapshot = collectPlannerSnapshot();
+
+  try {
+    const response = await fetch("/api/planner/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan: snapshot, name: snapshot.planName })
+    });
+    const result = await response.json();
+
+    if (result.status === "ok") {
+      showToast(`Meal Plan Saved (${result.name})`, "success");
+    } else {
+      showToast("Error saving meal plan", "error");
+    }
+  } catch (err) {
+    console.error("Save failed:", err);
+    showToast("Network error saving plan", "error");
+  }
+}
+
+/* ===============================
+   SNAPSHOT COLLECTOR
+   =============================== */
+function collectPlannerSnapshot() {
+  const gridHTML = document.getElementById("mealGridContainer")?.innerHTML || "";
+  const recipes = JSON.parse(localStorage.getItem("selectedRecipes") || "[]");
+  const shoppingList = items || [];
+
+  const { cycle, startDay, gridDates } = determinePlannerCycle();
+
+  return {
+    timestamp: new Date().toISOString(),
+    planName: `Week of ${gridDates[startDay]}`,
+    startDay,
+    cycle,
+    gridDates,
+    mealPlanHTML: gridHTML,
+    recipes,
+    shoppingList
+  };
+}
+
+function determinePlannerCycle() {
+  const today = new Date();
+  const day = today.getDay(); // 0=Sun ... 6=Sat
+  let cycle, startDay;
+
+  if (day >= 1 && day <= 3) { // Mon–Wed → mid-week plan
+    cycle = "Wed–Sun";
+    startDay = "Wednesday";
+  } else {
+    cycle = "Sun–Wed";
+    startDay = "Sunday";
+  }
+
+  const gridDates = getGridDates(startDay, today);
+  return { cycle, startDay, gridDates };
+}
+
+function getGridDates(startDay, refDate) {
+  const gridDays = startDay === "Sunday"
+    ? ["Sunday", "Monday", "Tuesday", "Wednesday"]
+    : ["Wednesday", "Thursday", "Friday", "Sunday"];
+
+  const dates = {};
+  let base = new Date(refDate);
+  base.setDate(base.getDate() + ((7 + gridDays.indexOf(startDay) - base.getDay()) % 7));
+
+  gridDays.forEach((day, i) => {
+    const d = new Date(base);
+    d.setDate(base.getDate() + i);
+    dates[day] = d.toISOString().split("T")[0];
+  });
+
+  return dates;
+}
+
+
 
 /* ===============================
    12. Init
