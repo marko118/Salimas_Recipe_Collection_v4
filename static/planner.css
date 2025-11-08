@@ -794,3 +794,103 @@ button.warn {
     margin: 0.5in;
   }
 }
+
+
+/* === Checklist mode: simplified layout === */
+body.checklist-mode #recipesInPlanner,
+body.checklist-mode #mealGridContainer,
+body.checklist-mode #controlsTop {
+  display: none;
+}
+
+body.checklist-mode #categoryGrid {
+  display: block;
+  padding: 0.5rem;
+}
+
+body.checklist-mode .category {
+  margin-bottom: 1rem;
+}
+
+body.checklist-mode .category.empty {
+  display: none; /* hide empty ones */
+}
+
+body.checklist-mode .category h3 {
+  background: #fafafa;
+  border-bottom: 1px solid #ddd;
+  padding: 6px 10px;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+body.checklist-mode .item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid #eee;
+  font-size: 1.05rem;
+}
+
+body.checklist-mode .item-name {
+  flex: 1;
+  cursor: pointer;
+}
+
+body.checklist-mode .item-name.crossed {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+/* === Hide planner controls & headers in Checklist Mode === */
+body.checklist-mode #controlsTop,
+body.checklist-mode #mealGridContainer,
+body.checklist-mode #dayToggle,
+body.checklist-mode #clearMealPlanBtn,
+body.checklist-mode #savePlannerBtn,
+body.checklist-mode #loadPlannerBtn,
+body.checklist-mode #exportBtn,
+body.checklist-mode #clearListBtn {
+  display: none !important;
+}
+
+body.checklist-mode h2,
+body.checklist-mode .planner-title {
+  display: none !important; /* hides "4-Day Meal Plan" header */
+}
+
+/* === Amount inputs (Planner + Checklist unified) === */
+
+/* Normal planner view */
+.amount-input {
+  text-align: right;
+  width: 60px;
+  min-width: 40px;
+  font-size: 0.9rem;
+  padding: 2px 4px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+/* Checklist view: inline text only if not empty */
+body.checklist-mode .amount-input {
+  border: none;
+  background: none;
+  color: #666;
+  font-size: 0.95rem;
+  text-align: right;
+  width: auto;
+  min-width: 0;
+  padding: 0;
+  margin-left: 6px;
+  display: none; /* hide by default */
+}
+
+body.checklist-mode .amount-input[value]:not([value=""]) {
+  display: inline; /* show only when non-empty */
+}
+
+body.checklist-mode .amount-input:focus {
+  outline: none;
+}

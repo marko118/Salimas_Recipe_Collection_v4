@@ -629,7 +629,7 @@ def admin_tags():
 def index():
     with get_conn() as conn:
         c = conn.cursor()
-        default_tag = "chicken"
+        default_tag = None
         # Show all recipes, newest first
         c.execute("SELECT id, name, ingredients FROM recipes ORDER BY id DESC")
         recipes = c.fetchall()
@@ -687,15 +687,43 @@ def search():
             c.execute("SELECT id, name, ingredients, tags FROM recipes ORDER BY name")
         results = c.fetchall()
 
-                # For the tag cloud on search pages
+        # For the tag cloud on search pages
         tag_cloud = get_tag_cloud()
+
+    # ✅ Load Quick Access tags (so they persist after search)
+    from pathlib import Path
+    import json
+
+    tags_path = Path("tags.json")
+    quick_access = []
+    if tags_path.exists():
+        try:
+            tags_data = json.loads(tags_path.read_text(encoding="utf-8"))
+            quick_access = tags_data.get("Quick Access", [])
+        except Exception as e:
+            print("⚠️ Error loading tags.json:", e)
 
     return render_template(
         "index.html",
         recipes=results,
         tag_cloud=tag_cloud,
-        default_tag=tag or q or "Results"
+        default_tag=tag or q or "Results",
+        quick_access=quick_access
     )
+
+
+    # ✅ Load Quick Access tags from tags.json
+    from pathlib import Path
+    import json
+
+    tags_path = Path("tags.json")
+    quick_access = []
+    if tags_path.exists():
+        try:
+            tags_data = json.loads(tags_path.read_text(encoding="utf-8"))
+            quick_access = tags_data.get("Quick Access", [])
+        except Exception as e:
+            print("⚠️ Error loading tags.json:", e)
 
 
 @app.route("/planner")
@@ -1123,6 +1151,7 @@ def api_planner_load(plan_id):
 # ---------------------------
 if __name__ == "__main__":
     init_db()
-    app.run(debug=True, port=5050, host="127.0.0.1")
+    app.run(debug=True, port=5050, host="0.0.0.0")
+
 
 

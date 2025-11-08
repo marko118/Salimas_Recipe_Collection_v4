@@ -15,19 +15,32 @@
 
 
 
-  <!-- === Quick Access Tag Buttons (from tags.json) === -->
+<!-- === Quick Access Tag Buttons (from tags.json) === -->
 <section class="quick-tags">
   {% if quick_access %}
+    <!-- "All" button to show everything -->
+    <form action="{{ url_for('index') }}" method="get" class="tag-form">
+      <button type="submit"
+              class="tag-btn {% if not default_tag or default_tag == 'All' %}active{% endif %}">
+        All
+      </button>
+    </form>
+
+    <!-- Each Quick Access tag -->
     {% for tag in quick_access %}
       <form action="{{ url_for('search') }}" method="get" class="tag-form">
         <input type="hidden" name="tag" value="{{ tag }}">
-        <button type="submit" class="tag-btn">{{ tag }}</button>
+        <button type="submit"
+                class="tag-btn {% if default_tag == tag %}active{% endif %}">
+          {{ tag }}
+        </button>
       </form>
     {% endfor %}
   {% else %}
     <p style="text-align:center; color:#777;">No Quick Access tags defined yet.</p>
   {% endif %}
 </section>
+
 
 
 
@@ -54,21 +67,24 @@
 
 
   <!-- === Recipe Results === -->
-  <section class="recipe-listing">
+<section class="recipe-listing">
+  {% if default_tag %}
     <h3>Recipes tagged “{{ default_tag }}”</h3>
-    {% for r in recipes %}
-      <div class="recipe-row">
-        <button class="select-dish-btn"
-                data-id="{{ r[0] }}"
-                data-name="{{ r[1] }}"></button>
-        <a href="{{ url_for('recipe_detail', recipe_id=r[0]) }}">
-          <strong>{{ r[1] }}</strong>
-        </a>
-      </div>
-    {% endfor %}
-  </section>
+  {% endif %}
+  {% for r in recipes %}
+    <div class="recipe-row">
+      <button class="select-dish-btn"
+              data-id="{{ r[0] }}"
+              data-name="{{ r[1] }}"></button>
+      <a href="{{ url_for('recipe_detail', recipe_id=r[0]) }}">
+        <strong>{{ r[1] }}</strong>
+      </a>
+    </div>
+  {% endfor %}
+</section>
 
 </main>
+
 
 
 <!-- === Select / Clear Logic === -->

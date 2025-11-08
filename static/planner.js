@@ -84,7 +84,8 @@ if (catItems.length === 0) {
           <span class="item-name" style="${i.crossed ? "text-decoration:line-through;opacity:0.6;" : ""}">
             ${i.name}
           </span>
-          <input type="text" class="amount-input" data-id="${i.id}" value="${i.amount || ""}" placeholder="1">
+          <input type="text" class="amount-input" data-id="${i.id}" value="${i.amount?.trim() || ""}" placeholder="">
+
         `;
         ul.appendChild(li);
       });
@@ -806,6 +807,19 @@ function getGridDates(startDay, refDate) {
   return dates;
 }
 
+/* ===============================
+   Toggle Checklist Mode
+   =============================== */
+const checklistToggleBtn = document.getElementById("checklistToggleBtn");
+
+if (checklistToggleBtn) {
+  checklistToggleBtn.onclick = () => {
+    const body = document.body;
+    const enabled = body.classList.toggle("checklist-mode");
+    checklistToggleBtn.textContent = enabled ? "📋 Back to Planner" : "🗒️ Checklist Mode";
+    showToast(enabled ? "🛒 Checklist Mode enabled" : "📋 Planner restored");
+  };
+}
 
 
 /* ===============================
