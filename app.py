@@ -180,6 +180,12 @@ def get_recipe(recipe_id: int):
         row = c.fetchone()
         return row
 
+def delete_recipe(recipe_id: int):
+    """Delete a recipe by ID."""
+    with get_conn() as conn:
+        c = conn.cursor()
+        c.execute("DELETE FROM recipes WHERE id = ?", (recipe_id,))
+        conn.commit()
 
 
 def add_recipe_to_db(name, ingredients, method, image_url, tags):
@@ -592,7 +598,7 @@ def edit_recipe(recipe_id):
 
 
 
-@app.route("/delete/<int:recipe_id>", methods=["POST"])
+@app.route("/delete/<int:recipe_id>", methods=["GET", "POST"])
 def delete_recipe_route(recipe_id):
     delete_recipe(recipe_id)
     return redirect(url_for("index"))
