@@ -40,86 +40,81 @@ async function loadSelectedRecipes() {
 function renderRecipes(meals) {
   const excluded = loadExcluded();
 
-  container.innerHTML = meals.map(meal => {
-    const list = (meal.ingredients || [])
-      .map(i => {
-        const key = `${meal.id}:${i}`;
-        const checked = !excluded[key];
-        return `<li>
-          <input type="checkbox" data-meal="${meal.id}" data-ing="${i}" ${checked ? "checked" : ""}>
-          ${i}
-        </li>`;
-      })
-      .join("");
+  container.innerHTML = meals
+    .map(meal => {
+      const list = (meal.ingredients || [])
+        .map(i => {
+          const key = `${meal.id}:${i}`;
+          const checked = !excluded[key];
+          return `
+            <li>
+              <input type="checkbox" data-meal="${meal.id}" data-ing="${i}" ${checked ? "checked" : ""}>
+              ${i}
+            </li>
+          `;
+        })
+        .join("");
 
+      // --- Build recipe title and external link ---
+      const externalLink = meal.url || meal.recipe_link || `/recipe/${meal.id}`;
+      const titleHTML = `
+        <a href="${externalLink}" target="_blank" rel="noopener noreferrer" class="link-icon" title="Open recipe source">🔗</a>
+        <a href="/recipe/${meal.id}" class="recipe-title" title="View recipe details">${meal.name}</a>
+      `;
 
-
-// --- Build recipe title and external link ---
-const externalLink = meal.url || meal.recipe_link || `/recipe/${meal.id}`;
-
-const titleHTML = `
-  <a href="${externalLink}" target="_blank" rel="noopener noreferrer" class="link-icon" title="Open recipe source">🔗</a>
-  <a href="/recipe/${meal.id}" class="recipe-title" title="View recipe details">${meal.name}</a>
-`;
-
-
-
-
-    return `
-      <div class="recipe-card" draggable="true" data-id="${meal.id}" data-recipe="${meal.name}">
-        <div class="recipe-header">
-          <h4>${titleHTML}</h4>
-          <button class="remove-recipe" data-id="${meal.id}" title="Remove from planner">✖</button>
+      return `
+        <div class="recipe-card" draggable="true" data-id="${meal.id}" data-recipe="${meal.name}">
+          <div class="recipe-header">
+            <h4>${titleHTML}</h4>
+            <button class="remove-recipe" data-id="${meal.id}" title="Remove from planner">✖</button>
+          </div>
+          <ul>${list}</ul>
         </div>
-        <ul>${list}</ul>
-      </div>
-    `;
-  }).join("");
+      `;
+    })
+    .join("");
 
   attachRecipeHandlers();
 
-/* ===============================
-   Add checked recipe ingredients to shopping list (preserves learned category)
-   =============================== */
-const addToListBtn = document.getElementById("importFromRecipesBtn");
+  /* ===============================
+     Add checked recipe ingredients to shopping list (preserves learned category)
+     =============================== */
+  const addToListBtn = document.getElementById("importFromRecipesBtn");
 
-if (addToListBtn) {
-  addToListBtn.addEventListener("click", async () => {
-    const checkedBoxes = document.querySelectorAll(
-      "#recipesContainer input[type='checkbox']:checked"
-    );
+  if (addToListBtn) {
+    addToListBtn.addEventListener("click", async () => {
+      const checkedBoxes = document.querySelectorAll(
+        "#recipesContainer input[type='checkbox']:checked"
+      );
 
-    if (!checkedBoxes.length) {
-      showToast("No ingredients selected.");
-      return;
-    }
+      if (!checkedBoxes.length) {
+        showToast("No ingredients selected.");
+        return;
+      }
 
-    let addedCount = 0;
+      let addedCount = 0;
 
-    for (const box of checkedBoxes) {
-      const ingredientName = (box.dataset.ing || "").trim();
-      if (!ingredientName) continue;
+      for (const box of checkedBoxes) {
+        const ingredientName = (box.dataset.ing || "").trim();
+        if (!ingredientName) continue;
 
-      // 🧠 Detect category but send null for "Other" so backend keeps stored one
-      let cat = detectCategory(ingredientName);
-      if (!cat || cat === "Other") cat = null;
+        // 🧠 Detect category but send null for "Other" so backend keeps stored one
+        let cat = detectCategory(ingredientName);
+        if (!cat || cat === "Other") cat = null;
 
-      await addNewItem(ingredientName, cat);
-      addedCount++;
+        await addNewItem(ingredientName, cat);
+        addedCount++;
 
-      // Visual feedback
-      box.checked = false;
-      box.disabled = true;
-      box.style.opacity = "0.5";
-    }
+        // Visual feedback
+        box.checked = false;
+        box.disabled = true;
+        box.style.opacity = "0.5";
+      }
 
-    showToast(`✅ Added ${addedCount} ingredients to shopping list.`);
-  });
-}
+      showToast(`✅ Added ${addedCount} ingredients to shopping list.`);
+    });
+  }
 
-
-
-  
   // --- Enable drag start for cards ---
   container.querySelectorAll(".recipe-card").forEach(card => {
     card.addEventListener("dragstart", e => {
@@ -143,6 +138,7 @@ if (addToListBtn) {
     };
   });
 }
+
 
 // --- Checkbox handler updates localStorage exclusions ---
 function attachRecipeHandlers() {

@@ -887,10 +887,13 @@ body.checklist-mode .amount-input {
   display: none; /* hide by default */
 }
 
-body.checklist-mode .amount-input[value]:not([value=""]) {
-  display: inline; /* show only when non-empty */
+/* ✅ Show when value is present (cross-browser safe) */
+body.checklist-mode .amount-input[value]:not([value=""]),
+body.checklist-mode .amount-input:not(:placeholder-shown) {
+  display: inline;
 }
 
 body.checklist-mode .amount-input:focus {
   outline: none;
 }
+

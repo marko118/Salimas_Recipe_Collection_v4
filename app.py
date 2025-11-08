@@ -1110,8 +1110,13 @@ init_planner_table()
 @app.route("/api/planner/save", methods=["POST"])
 def api_planner_save():
     payload = request.get_json(force=True)
-    plan_name = payload.get("name") or f"Plan {datetime.now():%Y-%m-%d %H:%M}"
-    plan_data = json.dumps(payload.get("plan", {}))
+
+    # ✅ Set plan name with European-style DD-MM-YYYY format
+    plan_name = payload.get("name") or f"Plan {datetime.now():%d-%m-%Y %H:%M}"
+
+    # ✅ Capture entire payload if "plan" key missing
+    plan_json = payload.get("plan") or payload
+    plan_data = json.dumps(plan_json)
 
     conn = sqlite3.connect("recipes_v2.db")
     c = conn.cursor()
@@ -1121,6 +1126,7 @@ def api_planner_save():
     conn.close()
 
     return jsonify({"status": "ok", "id": plan_id, "name": plan_name})
+
 
 
 # --- LIST all saved plans ---
@@ -1150,6 +1156,51 @@ def api_planner_load(plan_id):
         return jsonify(json.loads(row[0]))
     except Exception as e:
         return jsonify({"error": f"Invalid JSON: {e}"}), 500
+
+# --- APPLY a saved plan to the live shopping_list table ---
+@app.route("/api/planner/apply/<int:plan_id>", methods=["POST"])
+def api_planner_apply(plan_id):
+    """Replace current shopping_list table with the one from the saved plan."""
+    import json, sqlite3
+
+    conn = sqlite3.connect("recipes_v2.db")
+    c = conn.cursor()
+
+    # --- 1️⃣ Load saved plan data ---
+    c.execute("SELECT data FROM planner_saves WHERE id=?", (plan_id,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "Plan not found"}), 404
+
+    try:
+        plan_data = json.loads(row[0])
+        shopping_list = plan_data.get("shoppingList") or plan_data.get("shopping_list") or []
+    except Exception as e:
+        conn.close()
+        return jsonify({"error": f"Invalid JSON: {e}"}), 500
+
+    # --- 2️⃣ Clear current list ---
+    c.execute("UPDATE shopping_list SET active = 0")
+
+    # --- 3️⃣ Insert all items from saved plan, reset 'crossed' + clear 'amount' ---
+    for item in shopping_list:
+        name = item.get("name", "").strip()
+        if not name:
+            continue
+        category = item.get("category") or "Other"
+        crossed = 0   # reset all to uncrossed
+        amount = ""   # ✅ clear units for a fresh start
+
+        c.execute("""
+            INSERT OR REPLACE INTO shopping_list (name, category, amount, crossed, active, updated_at)
+            VALUES (?, ?, ?, ?, 1, datetime('now'))
+        """, (name, category, amount, crossed))
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"status": "applied", "count": len(shopping_list)})
 
 
 # ---------------------------

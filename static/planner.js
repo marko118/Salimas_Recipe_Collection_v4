@@ -595,55 +595,62 @@ if (loadBtn) {
       if (!choice) return;
 
       // 3️⃣ Fetch and load the chosen plan
-      const loadRes = await fetch(`/api/planner/load/${choice.trim()}`);
-      if (!loadRes.ok) throw new Error(await loadRes.text());
-      const planData = await loadRes.json();
+const loadRes = await fetch(`/api/planner/load/${choice.trim()}`);
+if (!loadRes.ok) throw new Error(await loadRes.text());
+const planData = await loadRes.json();
 
-      console.log("Loaded plan:", planData);
+console.log("Loaded plan:", planData);
 
-      // === Apply loaded plan data to UI ===
+// 🧩 Apply the shopping list to the live DB (so it persists)
+await fetch(`/api/planner/apply/${choice.trim()}`, { method: "POST" });
+
+// 🧩 Then reload the shopping list from DB
+await loadShoppingList();
+
+// === Apply loaded plan data to UI (supports old + new formats) ===
 if (!planData || Object.keys(planData).length === 0) {
   showToast("⚠️ This saved plan is empty", "warn");
   return;
 }
+// 🔄 Reset ingredient exclusions when loading a saved plan
+localStorage.removeItem("salimaPlannerV3_excluded");
 
-// 1️⃣ Replace shopping list data and re-render
-if (planData.shoppingList && Array.isArray(planData.shoppingList)) {
-  items = planData.shoppingList;
-  renderShoppingList();
-}
+      // 🧩 Normalize key names (old vs new)
+      const shoppingList = planData.shoppingList || planData.shopping_list || [];
+      const mealHTML = planData.mealPlanHTML || planData.meal_plan || "";
+      const recipes = planData.recipes || [];
 
-// 2️⃣ Restore recipes + ingredients
-if (planData.recipes && Array.isArray(planData.recipes) && planData.recipes.length > 0) {
-  localStorage.setItem("selectedRecipes", JSON.stringify(planData.recipes));
-  if (typeof loadSelectedRecipes === "function") {
-    await loadSelectedRecipes();
-  } else {
-    console.warn("planner_recipes.js not yet loaded");
-  }
-}
+      // 1️⃣ Restore shopping list
+      if (Array.isArray(shoppingList) && shoppingList.length > 0) {
+        items = shoppingList;
+        renderShoppingList();
+      }
 
-// 3️⃣ Restore meal plan grid (AFTER everything else)
-if (planData.mealPlanHTML) {
-  const grid = document.getElementById("mealGridContainer");
-  if (grid) grid.innerHTML = planData.mealPlanHTML;
-}
+      // 2️⃣ Restore recipes + ingredients
+      if (Array.isArray(recipes) && recipes.length > 0) {
+        localStorage.setItem("selectedRecipes", JSON.stringify(recipes));
+        if (typeof loadSelectedRecipes === "function") {
+          await loadSelectedRecipes();
+        } else {
+          console.warn("planner_recipes.js not yet loaded");
+        }
+      }
 
-
-
-
-
-      // 4️⃣ Refresh UI
-      attachHandlers();
-      enableDragDrop();
-
-      showToast(`✅ "${planData.planName || "Meal Plan"}" loaded`, "success");
+      // 3️⃣ Restore meal plan grid (AFTER everything else)
+      if (mealHTML) {
+        const grid = document.getElementById("mealGridContainer");
+        if (grid) grid.innerHTML = mealHTML;
+      }
+      localStorage.setItem("lastLoadedPlan", JSON.stringify(planData));
+      showToast(`✅ "${planData.planName || planData.name || "Meal Plan"}" loaded`, "success");
     } catch (err) {
       console.error("Load failed:", err);
       showToast("⚠️ Couldn't load plan", "warn");
     }
   };
 }
+
+
 
 
 
